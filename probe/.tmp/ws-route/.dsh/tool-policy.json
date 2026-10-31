@@ -1,0 +1,8 @@
+{
+  "default": [
+    "web_search"
+  ],
+  "blocked": [
+    "danger_tool"
+  ]
+}
