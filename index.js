@@ -408,13 +408,35 @@ export function apply(ctx, config = {}) {
       const policy = agent === undefined && explicitWorkspace === undefined
         ? policyForGlobal()
         : policyForAgentOrPath(agent, workspacePath)
-      let schemas = []
-      try {
-        schemas = ctx.tools.schemas(agent)
-      } catch {
-        schemas = []
+      // 工具全集：全局视图 + 每个活 agent 的可见表。agent preset 把文件工具挂在
+      // agent 作用域上，只看全局视图会漏掉一大半，面板也就编辑不到它们。
+      const universe = new Map()
+      const collect = (scopeAgent) => {
+        let schemas = []
+        try {
+          schemas = ctx.tools.schemas(scopeAgent)
+        } catch {
+          schemas = []
+        }
+        for (const schema of schemas) {
+          if (!universe.has(schema.name)) universe.set(schema.name, schema)
+        }
       }
-      const tools = schemas
+      collect(undefined)
+      let liveSessions = []
+      try {
+        liveSessions = ctx.agents.list().map((item) => ({
+          id: String(item.id),
+          cwd: typeof item.session?.header?.cwd === 'string' ? item.session.header.cwd : null,
+        }))
+      } catch {
+        liveSessions = []
+      }
+      for (const session of liveSessions) {
+        const liveAgent = ctx.agents.get(session.id)
+        if (liveAgent !== undefined) collect(liveAgent)
+      }
+      const tools = [...universe.values()]
         .map((schema) => ({
           name: schema.name,
           bucket: policy.bucketOf(schema.name),
@@ -426,6 +448,7 @@ export function apply(ctx, config = {}) {
         sessionId: sessionId ?? null,
         workspacePath: workspacePath ?? null,
         workspaces: listWorkspaces(),
+        sessions: liveSessions,
         global: {
           defaultTools: [...policy.global.defaultTools],
           blockedTools: [...policy.global.blockedTools],

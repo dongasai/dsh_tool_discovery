@@ -4,12 +4,12 @@
  * **工具发现 —— 浏览器半边**：在右侧栏注册两个页签。
  *
  * - 「工具·全局」：管所有工作区都继承的底（默认档名单、全局屏蔽、索引预算）。
- * - 「工具·工作区」：管某一个月录的覆盖（追加默认 / 追加屏蔽 / 预算覆盖），
- *   顶部下拉可切换工作区；没有会话时也能用。
+ * - 「工具·工作区」：管某个目录的覆盖（追加默认 / 追加屏蔽），顶部可切「活会话 / 已登记工作区」。
  *
  * ## 数据与约束
  *
- * - 读：`GET /tool-discovery/data`（Host 半边按 全局 → 工作区 → 会话激活 合成后给出档位）。
+ * - 读：`GET /tool-discovery/data[?sessionId=|?workspacePath=]`，Host 按
+ *   全局 → 工作区 → 会话激活 合成后给出每个工具的档位。
  * - 写：`POST /tool-discovery/policy`（全局写 `$DSH_HOME/tool-discovery/global.json`，
  *   工作区写 `<workspace>/<workspacePolicyFile>`）。
  * - 整个文件包在 IIFE 里、不 import 任何 Harness 包：宿主把所有 client bundle 拼成
@@ -25,7 +25,7 @@
   /** 工作区面板页签 id。 */
   const TAB_WORKSPACE = 'tool-discovery-workspace'
 
-  /** Host 半边数据路由；与 `index.js` 里的常量逐字一致。 */
+  /** Host 半边数据路由。 */
   const DATA_PATH = '/tool-discovery/data'
 
   /** Host 半边写入路由。 */
@@ -52,123 +52,81 @@
       /** 内联样式：只用主题 token，主题改名最多是外观退化。 */
       const S = {
         root: {
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-          padding: '12px',
-          height: '100%',
-          boxSizing: 'border-box',
-          minHeight: 0,
-          fontSize: '12px',
-          color: 'inherit',
+          display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px',
+          height: '100%', boxSizing: 'border-box', minHeight: 0, fontSize: '12px', color: 'inherit',
         },
         head: { display: 'flex', alignItems: 'center', gap: '8px', flex: 'none' },
         title: { margin: '0', fontSize: '13px', fontWeight: 600 },
         counts: { fontSize: '11px', opacity: 0.65 },
         spacer: { flex: '1 1 auto' },
         button: {
-          fontSize: '11px',
-          padding: '3px 8px',
-          borderRadius: '4px',
+          fontSize: '11px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer',
           border: '1px solid var(--dsw-alias-border-l3, rgba(127,127,127,.35))',
-          background: 'transparent',
-          color: 'inherit',
-          cursor: 'pointer',
+          background: 'transparent', color: 'inherit',
         },
         buttonPrimary: {
-          fontSize: '11px',
-          padding: '3px 10px',
-          borderRadius: '4px',
+          fontSize: '11px', padding: '3px 10px', borderRadius: '4px', cursor: 'pointer',
           border: '1px solid var(--dsw-alias-border-l3, rgba(127,127,127,.35))',
-          background: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,.12))',
-          color: 'inherit',
-          cursor: 'pointer',
+          background: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,.12))', color: 'inherit',
         },
         toolbar: { display: 'flex', alignItems: 'center', gap: '6px', flex: 'none' },
         input: {
-          fontSize: '11px',
-          padding: '3px 8px',
-          borderRadius: '4px',
+          fontSize: '11px', padding: '3px 8px', borderRadius: '4px', flex: '1 1 auto', minWidth: 0,
           border: '1px solid var(--dsw-alias-border-l3, rgba(127,127,127,.35))',
-          background: 'transparent',
-          color: 'inherit',
-          flex: '1 1 auto',
-          minWidth: 0,
+          background: 'transparent', color: 'inherit',
         },
         select: {
-          fontSize: '11px',
-          padding: '3px 6px',
-          borderRadius: '4px',
+          fontSize: '11px', padding: '3px 6px', borderRadius: '4px', maxWidth: '100%',
           border: '1px solid var(--dsw-alias-border-l3, rgba(127,127,127,.35))',
-          background: 'transparent',
-          color: 'inherit',
-          maxWidth: '100%',
+          background: 'transparent', color: 'inherit',
         },
         note: { margin: '0', fontSize: '11px', lineHeight: 1.6, opacity: 0.7 },
         error: {
-          margin: '0',
-          padding: '6px 8px',
-          borderRadius: '6px',
+          margin: '0', padding: '6px 8px', borderRadius: '6px', fontSize: '11px', lineHeight: 1.6,
           border: '1px solid var(--dsw-alias-label-error, rgba(220,80,80,.8))',
-          fontSize: '11px',
-          lineHeight: 1.6,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
         },
         ok: {
-          margin: '0',
-          padding: '6px 8px',
-          borderRadius: '6px',
+          margin: '0', padding: '6px 8px', borderRadius: '6px', fontSize: '11px', lineHeight: 1.6,
           border: '1px solid var(--dsw-alias-state-success, rgba(59,165,93,.8))',
-          fontSize: '11px',
-          lineHeight: 1.6,
         },
         list: { display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'auto', minHeight: 0 },
-        row: {
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '4px 6px',
-          borderRadius: '4px',
-        },
+        row: { display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 6px', borderRadius: '4px' },
         name: {
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-          fontSize: '11px',
-          fontWeight: 600,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          flex: '0 0 38%',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: '11px',
+          fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: '0 0 36%',
         },
         summary: {
-          fontSize: '11px',
-          opacity: 0.65,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          flex: '1 1 auto',
-          minWidth: 0,
+          fontSize: '11px', opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden',
+          textOverflow: 'ellipsis', flex: '1 1 auto', minWidth: 0,
         },
         seg: { display: 'inline-flex', gap: '2px', flex: 'none' },
         segOn: {
-          fontSize: '10px',
-          padding: '1px 7px',
-          borderRadius: '999px',
+          fontSize: '10px', padding: '1px 7px', borderRadius: '999px', cursor: 'pointer',
           border: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,.45))',
-          background: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,.18))',
-          color: 'inherit',
-          cursor: 'pointer',
+          background: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,.18))', color: 'inherit',
         },
         segOff: {
-          fontSize: '10px',
-          padding: '1px 7px',
-          borderRadius: '999px',
-          border: '1px solid transparent',
-          background: 'transparent',
-          color: 'inherit',
-          opacity: 0.55,
-          cursor: 'pointer',
+          fontSize: '10px', padding: '1px 7px', borderRadius: '999px', cursor: 'pointer',
+          border: '1px solid transparent', background: 'transparent', color: 'inherit', opacity: 0.55,
         },
+      }
+
+      /**
+       * 作用域选择器的一个取值：`''` = 全局，`session:<id>`，`workspace:<path>`。
+       * @param data - 数据路由返回体。
+       * @returns `[{ value, label }]`。
+       */
+      function scopeOptions(data) {
+        const options = [{ value: '', label: '全局（只读合成当前全局层）' }]
+        for (const session of data.sessions ?? []) {
+          const short = session.id.slice(0, 8)
+          options.push({ value: `session:${session.id}`, label: `会话 ${short}${session.cwd === null ? '' : ` — ${session.cwd}`}` })
+        }
+        for (const workspace of data.workspaces ?? []) {
+          options.push({ value: `workspace:${workspace.path}`, label: `工作区 ${workspace.title}` })
+        }
+        return options
       }
 
       /**
@@ -187,7 +145,7 @@
           const [loading, setLoading] = React.useState(false)
           const [saving, setSaving] = React.useState(false)
           const [query, setQuery] = React.useState('')
-          const [workspacePath, setWorkspacePath] = React.useState('')
+          const [scope, setScope] = React.useState(isGlobal ? '' : undefined)
           const alive = React.useRef(true)
           React.useEffect(() => {
             alive.current = true
@@ -195,38 +153,39 @@
           }, [])
 
           /**
-           * 拉一次数据；工作区模式带上当前选中的路径。
-           * @param pathOverride - 显式覆盖选择（下拉切换时用，绕过 state 批处理）。
+           * 拉一次数据。
+           * @param nextScope - 目标作用域；缺省用当前 state。
            * @returns 无。
            */
-          const load = React.useCallback(async (pathOverride) => {
-            const path = pathOverride ?? workspacePath
-            const url = isGlobal || path === ''
-              ? DATA_PATH
-              : `${DATA_PATH}?workspacePath=${encodeURIComponent(path)}`
+          const load = React.useCallback(async (nextScope) => {
+            const effective = nextScope ?? scope ?? ''
+            const query = new URLSearchParams()
+            if (effective.startsWith('session:')) query.set('sessionId', effective.slice('session:'.length))
+            else if (effective.startsWith('workspace:')) query.set('workspacePath', effective.slice('workspace:'.length))
+            const suffix = query.toString() === '' ? '' : `?${query}`
             setLoading(true)
             setError('')
             try {
-              const response = await fetch(url, { headers: { accept: 'application/json' } })
+              const response = await fetch(`${DATA_PATH}${suffix}`, { headers: { accept: 'application/json' } })
               const body = await response.json()
               if (body?.ok !== true) throw new Error(body?.message ?? '读取工具表失败')
               if (!alive.current) return
               setData(body)
               setDraft(Object.fromEntries(body.tools.map((tool) => [tool.name, tool.bucket])))
-              if (!isGlobal && (pathOverride ?? workspacePath) === '') {
-                const first = body.workspaces[0]?.path ?? ''
-                if (first !== '') {
-                  setWorkspacePath(first)
-                  await load(first)
-                  return
-                }
+              if (!isGlobal && (nextScope ?? scope) === undefined) {
+                const first = body.sessions?.[0]
+                const initial = first === undefined
+                  ? (body.workspaces?.[0] === undefined ? '' : `workspace:${body.workspaces[0].path}`)
+                  : `session:${first.id}`
+                setScope(initial)
+                if (initial !== '') await load(initial)
               }
             } catch (failure) {
               if (alive.current) setError(failure instanceof Error ? failure.message : String(failure))
             } finally {
               if (alive.current) setLoading(false)
             }
-          }, [workspacePath])
+          }, [scope])
 
           React.useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -238,6 +197,8 @@
             if (draft === undefined) return
             const defaults = Object.entries(draft).filter(([, bucket]) => bucket === 'default').map(([toolName]) => toolName)
             const blocked = Object.entries(draft).filter(([, bucket]) => bucket === 'blocked').map(([toolName]) => toolName)
+            const effective = scope ?? ''
+            const workspacePath = data.workspacePath ?? (effective.startsWith('workspace:') ? effective.slice('workspace:'.length) : undefined)
             const value = isGlobal ? { defaultTools: defaults, blockedTools: blocked } : { default: defaults, blocked }
             setSaving(true)
             setError('')
@@ -246,11 +207,15 @@
               const response = await fetch(POLICY_PATH, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ scope: isGlobal ? 'global' : 'workspace', workspacePath: isGlobal ? undefined : workspacePath, value }),
+                body: JSON.stringify({
+                  scope: isGlobal ? 'global' : 'workspace',
+                  workspacePath: isGlobal ? undefined : workspacePath,
+                  value,
+                }),
               })
               const body = await response.json()
               if (body?.ok !== true) throw new Error(body?.message ?? '保存失败')
-              if (alive.current) setNotice(`已保存（${body.path}）。新策略在下一轮请求生效。`)
+              if (alive.current) setNotice(`已保存（${body.path}）。下一轮请求生效。`)
               await load()
             } catch (failure) {
               if (alive.current) setError(failure instanceof Error ? failure.message : String(failure))
@@ -278,6 +243,7 @@
           const filtered = data.tools.filter((tool) => query === '' || tool.name.toLowerCase().includes(query.toLowerCase()))
           const counters = { default: 0, discoverable: 0, blocked: 0 }
           for (const bucket of Object.values(draft ?? {})) counters[bucket] += 1
+          const options = scopeOptions(data)
 
           return h('div', { style: S.root },
             h('div', { style: S.head },
@@ -287,18 +253,20 @@
               h('span', { style: S.spacer }),
               h('button', { style: S.button, type: 'button', disabled: loading, onClick: () => void load() }, '刷新'),
               h('button', { style: S.buttonPrimary, type: 'button', disabled: saving, onClick: () => void save() }, saving ? '保存中…' : '保存')),
-            isGlobal
-              ? h('p', { style: S.note }, '这里定的名单是所有工作区的底；工作区面板只能在此基础上追加屏蔽，不能解屏蔽。')
-              : h('div', { style: S.toolbar },
-                h('span', { style: S.note }, '工作区：'),
-                h('select', {
-                  style: S.select,
-                  value: workspacePath,
-                  onChange: (event) => {
-                    setWorkspacePath(event.target.value)
-                    void load(event.target.value)
-                  },
-                }, data.workspaces.map((item) => h('option', { key: item.id, value: item.path }, `${item.title} — ${item.path}`)))),
+            h('p', { style: S.note }, isGlobal
+              ? '这里的名单是所有工作区的底；工作区只能在此基础上追加屏蔽，不能解屏蔽。'
+              : `按目录覆盖。当前目标：${data.workspacePath ?? '（未选择）'}`),
+            h('div', { style: S.toolbar },
+              h('span', { style: S.note }, '查看'),
+              h('select', {
+                style: S.select,
+                value: scope ?? '',
+                onChange: (event) => {
+                  setScope(event.target.value)
+                  setNotice('')
+                  void load(event.target.value)
+                },
+              }, options.map((option) => h('option', { key: option.value, value: option.value }, option.label)))),
             h('div', { style: S.toolbar },
               h('input', {
                 style: S.input,
@@ -324,7 +292,7 @@
       }
 
       /**
-       * 造一个 guid 卡片图标（右下角一个小方块）。
+       * 指南卡片图标。
        * @returns React 元素。
        */
       function GuideIcon() {
@@ -345,14 +313,12 @@
           const panels = [
             {
               id: TAB_GLOBAL,
-              kind: TAB_GLOBAL,
               title: '工具·全局',
               description: '所有工作区共享的工具默认档与屏蔽清单',
               order: 30,
             },
             {
               id: TAB_WORKSPACE,
-              kind: TAB_WORKSPACE,
               title: '工具·工作区',
               description: '按工作区覆盖默认档、追加屏蔽',
               order: 31,
@@ -362,7 +328,7 @@
             const Component = createPanel(panel.id === TAB_GLOBAL ? 'global' : 'workspace')
             ctx.effect(() => ctx.sidebarRightTabs.register({
               id: panel.id,
-              kind: panel.kind,
+              kind: panel.id,
               priority: 'builtin',
               title: () => panel.title,
               guide: [{
