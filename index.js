@@ -92,6 +92,45 @@ export function apply(ctx, config = {}) {
 
   const globalFilePath = join(dshHome(), 'tool-discovery', GLOBAL_FILE)
 
+  // ---------------------------------------------------------------- 来源自动感知
+
+  /**
+   * toolName → 注册方插件名（取自注册时调用方 `ctx.fiber.name`）。
+   * 由 {@link hookRegisterSource} 拦截 `ctx.tools.register` 填充；
+   * 插件加载早于本插件时那些工具不在表里，靠 {@link sourceOf} 的兜底分支处理。
+   */
+  const sourceMap = new Map()
+
+  const unhookRegister = hookRegisterSource(ctx, sourceMap)
+  ctx.effect(() => unhookRegister, 'tool-discovery: register source hook')
+
+  /**
+   * 自动判定一个工具的来源分组。
+   *
+   * 优先级：MCP 命名规则（`mcp__server__tool`）＞ register 拦截捕获的插件名 ＞
+   * 已知内核工具集合 ＞ 其他。
+   *
+   * MCP 优先于拦截结果：MCP 工具虽然由 mcp-client 插件统一注册，但按服务器
+   * 分组比按插件名分组更有用。
+   *
+   * @param name - 工具名。
+   * @returns `{ id, kind, label, server? }`。
+   */
+  function sourceOf(name) {
+    const mcp = MCP_NAME.exec(name)
+    if (mcp !== null) {
+      const server = mcp[1]
+      return { id: 'mcp:' + server, kind: 'mcp', server, label: 'MCP · ' + server }
+    }
+    const plugin = sourceMap.get(name)
+    if (typeof plugin === 'string' && plugin !== '') {
+      if (plugin === 'root' || plugin.startsWith('tool-')) return { id: 'core', kind: 'local', label: '内核' }
+      return { id: 'plugin:' + plugin, kind: 'local', label: prettifyName(plugin) }
+    }
+    if (CORE_TOOLS.has(name)) return { id: 'core', kind: 'local', label: '内核' }
+    return { id: 'other', kind: 'local', label: '其他' }
+  }
+
   // ---------------------------------------------------------------- 策略读取
 
   /**
@@ -441,6 +480,7 @@ export function apply(ctx, config = {}) {
           name: schema.name,
           bucket: policy.bucketOf(schema.name),
           summary: summarize(schema.description, policy.summaryChars),
+          source: sourceOf(schema.name),
         }))
         .sort((a, b) => a.name.localeCompare(b.name))
       sendJson(res, 200, {
@@ -606,6 +646,77 @@ const EMPTY_WORKSPACE = Object.freeze({
 
 /** 空集合常量。 */
 const EMPTY_SET = new Set()
+
+/** MCP 工具命名规则：`mcp__server__tool`。 */
+const MCP_NAME = /^mcp__([\s\S]+?)__([\s\S]+)$/
+
+/** 已知内核工具（register 拦截未捕获时的兜底，避免误归「其他」）。 */
+const CORE_TOOLS = new Set([
+  'read', 'write', 'edit', 'glob', 'grep', 'bash', 'todo_write',
+  'ask_user_question', 'skill', 'present', 'read_image', 'run_code', TOOL_FIND,
+])
+
+/** register 拦截标记，防止 HMR 重载时重复打补丁。 */
+const HOOK_MARK = Symbol('tool-discovery:register-hook')
+
+/**
+ * 把插件名美化成分组标签：去掉 `dsh-` 前缀，其余原样。
+ * @param plugin - fiber.name（如 `dsh-sidebar-terminal`）。
+ * @returns 标签（如 `sidebar-terminal`）。
+ */
+function prettifyName(plugin) {
+  return plugin.startsWith('dsh-') ? plugin.slice(4) : plugin
+}
+
+/**
+ * 拦截 `ctx.tools.register`，把每次注册的调用方插件名记进 sourceMap。
+ *
+ * 利用 Cordis traceable 机制：方法被调用时 `this.ctx` 指向调用方上下文，
+ * `this.ctx.fiber.name` 即注册方插件名。`tool-*` 是第一方工具插件的命名
+ * 约定，`root` 是无具名插件的根上下文——两者都归「内核」。
+ *
+ * 沿原型链查找 `register` 的定义点：真实 Cordis 落在 `ToolRuntime.prototype`，
+ * 探针桩落在 `ctx.tools` 自身。打补丁后用 `ctx.effect` 注册还原钩子。
+ *
+ * @param ctx - Host 上下文。
+ * @param sourceMap - 写入目标（`toolName → pluginName`）。
+ * @returns 卸载钩子（还原原始 register）。
+ */
+function hookRegisterSource(ctx, sourceMap) {
+  let holder = ctx.tools
+  let original = null
+  while (holder !== null && holder !== undefined) {
+    const desc = Object.getOwnPropertyDescriptor(holder, 'register')
+    if (desc !== undefined && typeof desc.value === 'function') {
+      original = desc.value
+      break
+    }
+    holder = Object.getPrototypeOf(holder)
+  }
+  if (original === null) return () => {}
+  if (original[HOOK_MARK] === true) return () => {}
+  const hooked = function register(definition) {
+    const disposer = original.call(this, definition)
+    try {
+      const callerCtx = this?.ctx
+      const fiber = callerCtx?.fiber
+      const fname = typeof fiber?.name === 'string' && fiber.name !== '' ? fiber.name : 'root'
+      sourceMap.set(definition.name, fname)
+    } catch { /* 来源捕获失败不影响注册本身 */ }
+    return disposer
+  }
+  Object.defineProperty(hooked, HOOK_MARK, { value: true })
+  Object.defineProperty(holder, 'register', {
+    value: hooked, writable: true, configurable: true, enumerable: false,
+  })
+  return () => {
+    try {
+      Object.defineProperty(holder, 'register', {
+        value: original, writable: true, configurable: true, enumerable: false,
+      })
+    } catch { /* 还原失败忽略 */ }
+  }
+}
 
 /**
  * 归一化插件配置。

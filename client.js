@@ -4,7 +4,8 @@
  * **工具发现 —— 浏览器半边**：在右侧栏注册两个页签。
  *
  * - 「工具·全局」：管所有工作区都继承的底（默认档名单、全局屏蔽、索引预算）。
- * - 「工具·工作区」：管某个目录的覆盖（追加默认 / 追加屏蔽），顶部可切「活会话 / 已登记工作区」。
+ * - 「工具·工作区」：只管理当前会话所在工作区的覆盖（追加默认 / 追加屏蔽），
+ *   页签正文绑定 `sidebar.right.pane.tab` 槽位传入的 `sessionId`，不提供工作区切换。
  *
  * ## 数据与约束
  *
@@ -52,81 +53,76 @@
       /** 内联样式：只用主题 token，主题改名最多是外观退化。 */
       const S = {
         root: {
-          display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px',
-          height: '100%', boxSizing: 'border-box', minHeight: 0, fontSize: '12px', color: 'inherit',
+          display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px',
+          height: '100%', boxSizing: 'border-box', minHeight: 0, fontSize: '13px', color: 'inherit',
         },
         head: { display: 'flex', alignItems: 'center', gap: '8px', flex: 'none' },
-        title: { margin: '0', fontSize: '13px', fontWeight: 600 },
-        counts: { fontSize: '11px', opacity: 0.65 },
+        title: { margin: '0', fontSize: '15px', fontWeight: 600 },
+        counts: { fontSize: '12px', opacity: 0.65 },
         spacer: { flex: '1 1 auto' },
         button: {
-          fontSize: '11px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer',
+          fontSize: '12px', padding: '4px 10px', borderRadius: '5px', cursor: 'pointer',
           border: '1px solid var(--dsw-alias-border-l3, rgba(127,127,127,.35))',
           background: 'transparent', color: 'inherit',
         },
         buttonPrimary: {
-          fontSize: '11px', padding: '3px 10px', borderRadius: '4px', cursor: 'pointer',
+          fontSize: '12px', padding: '4px 12px', borderRadius: '5px', cursor: 'pointer',
           border: '1px solid var(--dsw-alias-border-l3, rgba(127,127,127,.35))',
           background: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,.12))', color: 'inherit',
         },
         toolbar: { display: 'flex', alignItems: 'center', gap: '6px', flex: 'none' },
         input: {
-          fontSize: '11px', padding: '3px 8px', borderRadius: '4px', flex: '1 1 auto', minWidth: 0,
+          fontSize: '12px', padding: '4px 8px', borderRadius: '5px', flex: '1 1 auto', minWidth: 0,
           border: '1px solid var(--dsw-alias-border-l3, rgba(127,127,127,.35))',
           background: 'transparent', color: 'inherit',
         },
-        select: {
-          fontSize: '11px', padding: '3px 6px', borderRadius: '4px', maxWidth: '100%',
-          border: '1px solid var(--dsw-alias-border-l3, rgba(127,127,127,.35))',
-          background: 'transparent', color: 'inherit',
-        },
-        note: { margin: '0', fontSize: '11px', lineHeight: 1.6, opacity: 0.7 },
+        note: { margin: '0', fontSize: '12px', lineHeight: 1.6, opacity: 0.7 },
         error: {
-          margin: '0', padding: '6px 8px', borderRadius: '6px', fontSize: '11px', lineHeight: 1.6,
+          margin: '0', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', lineHeight: 1.6,
           border: '1px solid var(--dsw-alias-label-error, rgba(220,80,80,.8))',
           whiteSpace: 'pre-wrap', wordBreak: 'break-word',
         },
         ok: {
-          margin: '0', padding: '6px 8px', borderRadius: '6px', fontSize: '11px', lineHeight: 1.6,
+          margin: '0', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', lineHeight: 1.6,
           border: '1px solid var(--dsw-alias-state-success, rgba(59,165,93,.8))',
         },
-        list: { display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'auto', minHeight: 0 },
-        row: { display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 6px', borderRadius: '4px' },
+        list: { display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'auto', minHeight: 0 },
+        row: { display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 8px', borderRadius: '5px' },
         name: {
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: '11px',
-          fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: '0 0 36%',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: '12px',
+          fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: '0 0 34%',
         },
         summary: {
-          fontSize: '11px', opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden',
+          fontSize: '12px', opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden',
           textOverflow: 'ellipsis', flex: '1 1 auto', minWidth: 0,
         },
-        seg: { display: 'inline-flex', gap: '2px', flex: 'none' },
+        seg: { display: 'inline-flex', gap: '3px', flex: 'none' },
         segOn: {
-          fontSize: '10px', padding: '1px 7px', borderRadius: '999px', cursor: 'pointer',
+          fontSize: '11px', padding: '2px 9px', borderRadius: '999px', cursor: 'pointer',
           border: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,.45))',
           background: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,.18))', color: 'inherit',
         },
         segOff: {
-          fontSize: '10px', padding: '1px 7px', borderRadius: '999px', cursor: 'pointer',
+          fontSize: '11px', padding: '2px 9px', borderRadius: '999px', cursor: 'pointer',
           border: '1px solid transparent', background: 'transparent', color: 'inherit', opacity: 0.55,
         },
-      }
-
-      /**
-       * 作用域选择器的一个取值：`''` = 全局，`session:<id>`，`workspace:<path>`。
-       * @param data - 数据路由返回体。
-       * @returns `[{ value, label }]`。
-       */
-      function scopeOptions(data) {
-        const options = [{ value: '', label: '全局（只读合成当前全局层）' }]
-        for (const session of data.sessions ?? []) {
-          const short = session.id.slice(0, 8)
-          options.push({ value: `session:${session.id}`, label: `会话 ${short}${session.cwd === null ? '' : ` — ${session.cwd}`}` })
-        }
-        for (const workspace of data.workspaces ?? []) {
-          options.push({ value: `workspace:${workspace.path}`, label: `工作区 ${workspace.title}` })
-        }
-        return options
+        groupHead: {
+          display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 8px',
+          cursor: 'pointer', userSelect: 'none', flex: 'none', position: 'sticky', top: 0,
+          background: 'var(--dsw-alias-bg-layer-1, rgba(127,127,127,.04))',
+          borderBottom: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,.2))',
+          zIndex: 1,
+        },
+        groupLabel: { fontSize: '12px', fontWeight: 700, opacity: 0.8, whiteSpace: 'nowrap', flex: '0 0 auto' },
+        groupCount: {
+          fontSize: '11px', padding: '0 8px', borderRadius: '999px', lineHeight: '18px',
+          background: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,.15))', opacity: 0.7, flex: '0 0 auto',
+        },
+        chevron: {
+          fontSize: '10px', opacity: 0.45, flex: 'none', display: 'inline-block',
+          transition: 'transform .12s ease',
+        },
+        groupBody: { display: 'flex', flexDirection: 'column', gap: '1px' },
       }
 
       /**
@@ -137,7 +133,7 @@
       function createPanel(mode) {
         const isGlobal = mode === 'global'
 
-        return function ToolDiscoveryPanel() {
+        return function ToolDiscoveryPanel({ sessionId }) {
           const [data, setData] = React.useState(undefined)
           const [draft, setDraft] = React.useState(undefined)
           const [error, setError] = React.useState('')
@@ -145,7 +141,7 @@
           const [loading, setLoading] = React.useState(false)
           const [saving, setSaving] = React.useState(false)
           const [query, setQuery] = React.useState('')
-          const [scope, setScope] = React.useState(isGlobal ? '' : undefined)
+          const [collapsed, setCollapsed] = React.useState(() => new Set())
           const alive = React.useRef(true)
           React.useEffect(() => {
             alive.current = true
@@ -153,16 +149,14 @@
           }, [])
 
           /**
-           * 拉一次数据。
-           * @param nextScope - 目标作用域；缺省用当前 state。
+           * 拉一次数据。工作区面板只认当前会话：`sessionId` 由
+           * `sidebar.right.pane.tab` 槽位传入；全局面板不带任何参数。
            * @returns 无。
            */
-          const load = React.useCallback(async (nextScope) => {
-            const effective = nextScope ?? scope ?? ''
-            const query = new URLSearchParams()
-            if (effective.startsWith('session:')) query.set('sessionId', effective.slice('session:'.length))
-            else if (effective.startsWith('workspace:')) query.set('workspacePath', effective.slice('workspace:'.length))
-            const suffix = query.toString() === '' ? '' : `?${query}`
+          const load = React.useCallback(async () => {
+            const params = new URLSearchParams()
+            if (!isGlobal && sessionId !== undefined && sessionId !== '') params.set('sessionId', sessionId)
+            const suffix = params.toString() === '' ? '' : `?${params}`
             setLoading(true)
             setError('')
             try {
@@ -172,22 +166,14 @@
               if (!alive.current) return
               setData(body)
               setDraft(Object.fromEntries(body.tools.map((tool) => [tool.name, tool.bucket])))
-              if (!isGlobal && (nextScope ?? scope) === undefined) {
-                const first = body.sessions?.[0]
-                const initial = first === undefined
-                  ? (body.workspaces?.[0] === undefined ? '' : `workspace:${body.workspaces[0].path}`)
-                  : `session:${first.id}`
-                setScope(initial)
-                if (initial !== '') await load(initial)
-              }
             } catch (failure) {
               if (alive.current) setError(failure instanceof Error ? failure.message : String(failure))
             } finally {
               if (alive.current) setLoading(false)
             }
-          }, [scope])
+          }, [sessionId, isGlobal])
 
-          React.useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+          React.useEffect(() => { void load() }, [load])
 
           /**
            * 保存草稿：默认档与屏蔽档两个名单直接落盘。
@@ -197,8 +183,11 @@
             if (draft === undefined) return
             const defaults = Object.entries(draft).filter(([, bucket]) => bucket === 'default').map(([toolName]) => toolName)
             const blocked = Object.entries(draft).filter(([, bucket]) => bucket === 'blocked').map(([toolName]) => toolName)
-            const effective = scope ?? ''
-            const workspacePath = data.workspacePath ?? (effective.startsWith('workspace:') ? effective.slice('workspace:'.length) : undefined)
+            const workspacePath = data?.workspacePath
+            if (!isGlobal && (workspacePath === undefined || workspacePath === null || workspacePath === '')) {
+              if (alive.current) setError('当前会话没有工作区目录，无法保存工作区策略。')
+              return
+            }
             const value = isGlobal ? { defaultTools: defaults, blockedTools: blocked } : { default: defaults, blocked }
             setSaving(true)
             setError('')
@@ -243,11 +232,48 @@
           const filtered = data.tools.filter((tool) => query === '' || tool.name.toLowerCase().includes(query.toLowerCase()))
           const counters = { default: 0, discoverable: 0, blocked: 0 }
           for (const bucket of Object.values(draft ?? {})) counters[bucket] += 1
-          const options = scopeOptions(data)
+
+          const sourceLabel = (source) => {
+            if (!source) return '其他'
+            if (source.kind === 'mcp' || String(source.id).startsWith('mcp:')) {
+              return source.server ? `MCP · ${source.server}` : (source.label || source.id)
+            }
+            if (source.id === 'core') return '内核'
+            if (source.id === 'other') return '其他'
+            if (source.id.startsWith('plugin:')) return source.label || source.id.slice('plugin:'.length)
+            return source.label || source.id
+          }
+          const groupRank = (id) => {
+            if (id === 'core') return 0
+            if (id.startsWith('plugin:')) return 100
+            if (id.startsWith('mcp:')) return 200
+            if (id === 'other') return 999
+            return 500
+          }
+          const groups = new Map()
+          for (const tool of filtered) {
+            const id = tool.source?.id || 'other'
+            if (!groups.has(id)) groups.set(id, { id, source: tool.source, items: [] })
+            groups.get(id).items.push(tool)
+          }
+          const ordered = [...groups.values()].sort((a, b) => {
+            const ra = groupRank(a.id)
+            const rb = groupRank(b.id)
+            if (ra !== rb) return ra - rb
+            return sourceLabel(a.source).localeCompare(sourceLabel(b.source))
+          })
+          const toggleGroup = (id) => {
+            setCollapsed((current) => {
+              const next = new Set(current)
+              if (next.has(id)) next.delete(id)
+              else next.add(id)
+              return next
+            })
+          }
 
           return h('div', { style: S.root },
             h('div', { style: S.head },
-              h('h3', { style: S.title }, isGlobal ? '工具·全局' : '工具·工作区'),
+              h('h3', { style: S.title }, isGlobal ? '工具自动发现' : '工具·工作区'),
               h('span', { style: S.counts },
                 `共 ${data.counts.total} · 默认 ${counters.default} · 可发现 ${counters.discoverable} · 屏蔽 ${counters.blocked}`),
               h('span', { style: S.spacer }),
@@ -255,18 +281,7 @@
               h('button', { style: S.buttonPrimary, type: 'button', disabled: saving, onClick: () => void save() }, saving ? '保存中…' : '保存')),
             h('p', { style: S.note }, isGlobal
               ? '这里的名单是所有工作区的底；工作区只能在此基础上追加屏蔽，不能解屏蔽。'
-              : `按目录覆盖。当前目标：${data.workspacePath ?? '（未选择）'}`),
-            h('div', { style: S.toolbar },
-              h('span', { style: S.note }, '查看'),
-              h('select', {
-                style: S.select,
-                value: scope ?? '',
-                onChange: (event) => {
-                  setScope(event.target.value)
-                  setNotice('')
-                  void load(event.target.value)
-                },
-              }, options.map((option) => h('option', { key: option.value, value: option.value }, option.label)))),
+              : `只管理当前会话所在工作区。当前目标：${data.workspacePath ?? '（未选择）'}`),
             h('div', { style: S.toolbar },
               h('input', {
                 style: S.input,
@@ -277,16 +292,31 @@
             error === '' ? null : h('p', { style: S.error, role: 'alert' }, error),
             notice === '' ? null : h('p', { style: S.ok }, notice),
             h('div', { style: S.list },
-              filtered.map((tool) => h('div', { key: tool.name, style: S.row },
-                h('span', { style: S.name, title: tool.name }, tool.name),
-                h('span', { style: S.summary, title: tool.summary }, tool.summary),
-                h('span', { style: S.seg },
-                  BUCKETS.map((bucket) => h('button', {
-                    key: bucket.id,
-                    type: 'button',
-                    style: (draft?.[tool.name] ?? tool.bucket) === bucket.id ? S.segOn : S.segOff,
-                    onClick: () => setBucket(tool.name, bucket.id),
-                  }, bucket.label))))),
+              ordered.flatMap((group) => {
+                const isCollapsed = collapsed.has(group.id)
+                return [
+                  h('div', {
+                    key: 'g:' + group.id,
+                    style: S.groupHead,
+                    onClick: () => toggleGroup(group.id),
+                    role: 'button',
+                    'aria-expanded': !isCollapsed,
+                  },
+                    h('span', { style: { ...S.chevron, transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' } }, '▾'),
+                    h('span', { style: S.groupLabel }, sourceLabel(group.source)),
+                    h('span', { style: S.groupCount }, group.items.length)),
+                  ...(isCollapsed ? [] : group.items.map((tool) => h('div', { key: tool.name, style: S.row },
+                    h('span', { style: S.name, title: tool.name }, tool.name),
+                    h('span', { style: S.summary, title: tool.summary }, tool.summary),
+                    h('span', { style: S.seg },
+                      BUCKETS.map((bucket) => h('button', {
+                        key: bucket.id,
+                        type: 'button',
+                        style: (draft?.[tool.name] ?? tool.bucket) === bucket.id ? S.segOn : S.segOff,
+                        onClick: () => setBucket(tool.name, bucket.id),
+                      }, bucket.label)))))),
+                ]
+              }),
               filtered.length === 0 ? h('p', { style: S.note }, '没有匹配的工具。') : null))
         }
       }
@@ -301,49 +331,74 @@
           h('path', { d: 'M5.5 7.5h7M5.5 10.5h4.5', stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round' }))
       }
 
+      /** 左侧栏全局面板图标。 */
+      function GlobalIcon({ size }) {
+        return h('svg', {
+          width: size ?? 18,
+          height: size ?? 18,
+          viewBox: '0 0 18 18',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: '1.4',
+          strokeLinecap: 'round',
+          'aria-hidden': 'true',
+          focusable: 'false',
+        },
+          h('circle', { cx: 9, cy: 9, r: 6.5 }),
+          h('path', { d: 'M9 2.5v13M2.5 9h13' }))
+      }
+
       return {
         name: 'tool-discovery',
         inject: ['slots', 'sidebarRightTabs'],
         /**
-         * 注册两个页签类型与各自的正文。
+         * 注册全局面板（左侧栏）与工作区页签（右侧栏）。
          * @param ctx - 浏览器端插件上下文。
          * @returns 无。
          */
         apply(ctx) {
-          const panels = [
-            {
-              id: TAB_GLOBAL,
-              title: '工具·全局',
-              description: '所有工作区共享的工具默认档与屏蔽清单',
-              order: 30,
-            },
-            {
-              id: TAB_WORKSPACE,
-              title: '工具·工作区',
-              description: '按工作区覆盖默认档、追加屏蔽',
-              order: 31,
-            },
-          ]
-          for (const panel of panels) {
-            const Component = createPanel(panel.id === TAB_GLOBAL ? 'global' : 'workspace')
-            ctx.effect(() => ctx.sidebarRightTabs.register({
-              id: panel.id,
-              kind: panel.id,
-              priority: 'builtin',
-              title: () => panel.title,
-              guide: [{
-                id: `${panel.id}-guide`,
-                order: panel.order,
-                title: () => panel.title,
-                description: () => panel.description,
-                icon: GuideIcon,
-              }],
-            }), `tool-discovery: tab ${panel.id}`)
-            ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
-              name: 'sidebar.right.pane.tab',
-              key: panel.id,
-            }, Component)), `tool-discovery: panel ${panel.id}`)
+          const GlobalPanel = createPanel('global')
+          const WorkspacePanel = createPanel('workspace')
+
+          function GlobalPanelSlot() {
+            return h(GlobalPanel)
           }
+
+          /** 右侧栏页签正文：`sidebar.right.pane.tab` 槽位会把当前会话 id 作为 prop 传进来。 */
+          function WorkspacePanelSlot(props) {
+            return h(WorkspacePanel, { sessionId: props?.sessionId })
+          }
+
+          // 全局管理：左侧栏面板（类似 gitea 的全局看板）
+          ctx.effect(() => ctx.slots.inject('main', () => ctx.slots.register({
+            name: 'main',
+            key: TAB_GLOBAL,
+          }, GlobalPanelSlot)), 'tool-discovery: global main')
+          ctx.effect(() => ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+            name: 'sidebar.panellist',
+            id: TAB_GLOBAL,
+            order: 30,
+            label: () => '工具自动发现',
+          }, GlobalIcon)), 'tool-discovery: global sidebar icon')
+
+          // 工作区管理：右侧栏页签
+          ctx.effect(() => ctx.sidebarRightTabs.register({
+            id: TAB_WORKSPACE,
+            kind: TAB_WORKSPACE,
+            priority: 'builtin',
+            title: () => '工具·工作区',
+            guide: [{
+              id: `${TAB_WORKSPACE}-guide`,
+              order: 31,
+              title: () => '工具·工作区',
+              description: () => '管理当前工作区的默认档与屏蔽',
+              icon: GuideIcon,
+            }],
+          }), 'tool-discovery: workspace tab')
+          ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
+            name: 'sidebar.right.pane.tab',
+            key: TAB_WORKSPACE,
+          }, WorkspacePanelSlot)), 'tool-discovery: workspace panel')
         },
       }
     },

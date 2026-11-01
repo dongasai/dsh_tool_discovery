@@ -28,9 +28,11 @@ Host 半边（`index.js`）改完要重启 `dsh web`；浏览器半边（`client
 | 面板 | 页签 | 管什么 | 写到哪 |
 | --- | --- | --- | --- |
 | 工具·全局 | `tool-discovery-global` | 默认档名单、全局屏蔽、索引预算 | `$DSH_HOME/tool-discovery/global.json` |
-| 工具·工作区 | `tool-discovery-workspace` | 某个工作区的追加默认 / 追加屏蔽 / 预算覆盖 | `<workspace>/.dsh/tool-policy.json` |
+| 工具·工作区 | `tool-discovery-workspace` | 当前会话所在工作区的追加默认 / 追加屏蔽 | `<workspace>/.dsh/tool-policy.json` |
 
 面板每行一个工具，点「默认 / 可发现 / 屏蔽」改档，按「保存」落盘。工具表由 Host 半边按 全局 → 工作区 → 会话激活 合成后给出，所以看到的就是生效结果。
+
+「工具·工作区」页签正文由右侧栏槽位传入当前会话 id（`sidebar.right.pane.tab` 的 `sessionId` prop），**只管理当前会话所在工作区**，不提供工作区切换下拉；没有会话上下文时只读显示全局合成结果且保存被拒。
 
 ## 配置（`cordis.patch.yml`）
 
@@ -80,7 +82,7 @@ Host 半边（`index.js`）改完要重启 `dsh web`；浏览器半边（`client
 - **PTC 模式**：模型只看到 `run_code`，索引与激活语义未适配；目前只保证 native 模式。
 - **中途激活改请求头**：激活后下一轮才进声明；没做 `defer_loading` + `tool_addition`，所以会重算一次请求头。
 - **与 activator 打架**：两者都改工具声明，同时开启是双重伪装，建议二选一。
-- **工作区面板需要登记表**：下拉里只有 `workspaceRegistry.list()` 里的工作区；没登记过的目录只能靠会话 cwd 命中。
+- **工作区面板只跟当前会话走**：不再有工作区下拉；目标工作区由会话 cwd 解析（`workspaceRegistry` 只做校验兜底）。没有会话上下文时面板只读且保存被拒。
 
 ## 探针
 
@@ -88,4 +90,4 @@ Host 半边（`index.js`）改完要重启 `dsh web`；浏览器半边（`client
 node probe/probe.mjs
 ```
 
-桩 ctx + 真文件系统，覆盖：默认档过滤、索引生成与截断、`tool_find` 检索与激活、屏蔽 guard、工作区覆盖、全局文件覆盖、两条面板路由。当前 36 项断言。
+桩 ctx + 真文件系统，覆盖：默认档过滤、索引生成与截断、`tool_find` 检索与激活、屏蔽 guard、工作区覆盖、全局文件覆盖、两条面板路由、工具来源自动感知。当前 41 项断言。

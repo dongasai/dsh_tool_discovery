@@ -51,9 +51,11 @@ function makeCtx(options = {}) {
   const listeners = []
   const routes = new Map()
   const ctx = {
-    effect(fn) { const disposer = fn(); if (typeof disposer === 'function') disposer(); return () => {} },
+    effect(fn) { const disposer = fn(); return typeof disposer === 'function' ? disposer : () => {} },
     on(event, handler) { listeners.push({ event, handler }); return () => {} },
     tools: {
+      // 模拟 Cordis traceable：让拦截到的 register 能读到调用方 fiber
+      ctx: options.toolCallerCtx,
       register(definition) { tools.set(definition.name, definition); return () => {} },
       guard(fn) { guards.push(fn); return () => {} },
       schemas(agent) {
@@ -256,6 +258,47 @@ const schemasOf = (ctx) => ctx.tools.schemas(undefined)
   const route = ctx.__.routes.get('/tool-discovery/data')
   const data = await callRoute(route, 'GET', '/tool-discovery/data')
   check(data.body.ok === true && data.body.workspacePath === null, '无会话时返回全局视图')
+}
+
+// ---------------------------------------------------------------- 10. 来源自动感知
+{
+  // 内核工具：fiber.name = 'tool-fs'（第一方工具插件约定）
+  const ctx1 = makeCtx({ tools: [], toolCallerCtx: { fiber: { name: 'tool-fs' } } })
+  apply(ctx1, {})
+  ctx1.tools.register({ name: 'my_read', description: '读文件。', parameters: { type: 'object', properties: {} } })
+  const d1 = await callRoute(ctx1.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  const s1 = d1.body.tools.find((t) => t.name === 'my_read')?.source
+  check(s1?.id === 'core' && s1?.label === '内核', 'tool-* 插件注册的工具归内核')
+
+  // 自研插件：fiber.name = 'dsh-sidebar-terminal'
+  const ctx2 = makeCtx({ tools: [], toolCallerCtx: { fiber: { name: 'dsh-sidebar-terminal' } } })
+  apply(ctx2, {})
+  ctx2.tools.register({ name: 'sidebar_terminal_create', description: '开终端。', parameters: { type: 'object', properties: {} } })
+  const d2 = await callRoute(ctx2.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  const s2 = d2.body.tools.find((t) => t.name === 'sidebar_terminal_create')?.source
+  check(s2?.id === 'plugin:dsh-sidebar-terminal' && s2?.label === 'sidebar-terminal', '自研插件按名分组（去 dsh- 前缀）')
+
+  // MCP：纯靠命名规则，即使拦截到 mcp-client 也按服务器分
+  const ctx3 = makeCtx({ tools: [], toolCallerCtx: { fiber: { name: 'mcp-client' } } })
+  apply(ctx3, {})
+  ctx3.tools.register({ name: 'mcp__github__create_issue', description: '建 issue。', parameters: { type: 'object', properties: {} } })
+  const d3 = await callRoute(ctx3.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  const s3 = d3.body.tools.find((t) => t.name === 'mcp__github__create_issue')?.source
+  check(s3?.id === 'mcp:github' && s3?.label === 'MCP · github', 'MCP 工具按服务器分组（优先于插件名）')
+
+  // 兜底：register 拦截未捕获的非内核工具（预置进 Map，没走 register）
+  const ctx4 = makeCtx({ tools: [{ name: 'orphan_tool', description: '来历不明。' }] })
+  apply(ctx4, {})
+  const d4 = await callRoute(ctx4.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  const s4 = d4.body.tools.find((t) => t.name === 'orphan_tool')?.source
+  check(s4?.id === 'other' && s4?.label === '其他', '未捕获的非内核工具兜底归其他')
+
+  // 兜底：内核工具集合（即使没走 register 也认得）
+  const ctx5 = makeCtx({ tools: [{ name: 'bash', description: '执行命令。' }] })
+  apply(ctx5, {})
+  const d5 = await callRoute(ctx5.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  const s5 = d5.body.tools.find((t) => t.name === 'bash')?.source
+  check(s5?.id === 'core' && s5?.label === '内核', '内核工具集合兜底')
 }
 
 /**
