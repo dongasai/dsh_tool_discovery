@@ -53,73 +53,73 @@
       /** 内联样式：只用主题 token，主题改名最多是外观退化。 */
       const S = {
         root: {
-          display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px',
-          height: '100%', boxSizing: 'border-box', minHeight: 0, fontSize: '13px', color: 'inherit',
+          display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px',
+          height: '100%', boxSizing: 'border-box', minHeight: 0, fontSize: '14px', color: 'inherit',
         },
         head: { display: 'flex', alignItems: 'center', gap: '8px', flex: 'none' },
-        title: { margin: '0', fontSize: '15px', fontWeight: 600 },
-        counts: { fontSize: '12px', opacity: 0.65 },
+        title: { margin: '0', fontSize: '16px', fontWeight: 600 },
+        counts: { fontSize: '13px', opacity: 0.65 },
         spacer: { flex: '1 1 auto' },
         button: {
-          fontSize: '12px', padding: '4px 10px', borderRadius: '5px', cursor: 'pointer',
+          fontSize: '13px', padding: '5px 12px', borderRadius: '5px', cursor: 'pointer',
           border: '1px solid var(--dsw-alias-border-l3, rgba(127,127,127,.35))',
           background: 'transparent', color: 'inherit',
         },
         buttonPrimary: {
-          fontSize: '12px', padding: '4px 12px', borderRadius: '5px', cursor: 'pointer',
+          fontSize: '13px', padding: '5px 14px', borderRadius: '5px', cursor: 'pointer',
           border: '1px solid var(--dsw-alias-border-l3, rgba(127,127,127,.35))',
           background: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,.12))', color: 'inherit',
         },
         toolbar: { display: 'flex', alignItems: 'center', gap: '6px', flex: 'none' },
         input: {
-          fontSize: '12px', padding: '4px 8px', borderRadius: '5px', flex: '1 1 auto', minWidth: 0,
+          fontSize: '13px', padding: '5px 8px', borderRadius: '5px', flex: '1 1 auto', minWidth: 0,
           border: '1px solid var(--dsw-alias-border-l3, rgba(127,127,127,.35))',
           background: 'transparent', color: 'inherit',
         },
-        note: { margin: '0', fontSize: '12px', lineHeight: 1.6, opacity: 0.7 },
+        note: { margin: '0', fontSize: '13px', lineHeight: 1.6, opacity: 0.7 },
         error: {
-          margin: '0', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', lineHeight: 1.6,
+          margin: '0', padding: '8px 10px', borderRadius: '6px', fontSize: '13px', lineHeight: 1.6,
           border: '1px solid var(--dsw-alias-label-error, rgba(220,80,80,.8))',
           whiteSpace: 'pre-wrap', wordBreak: 'break-word',
         },
         ok: {
-          margin: '0', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', lineHeight: 1.6,
+          margin: '0', padding: '8px 10px', borderRadius: '6px', fontSize: '13px', lineHeight: 1.6,
           border: '1px solid var(--dsw-alias-state-success, rgba(59,165,93,.8))',
         },
-        list: { display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'auto', minHeight: 0 },
-        row: { display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 8px', borderRadius: '5px' },
+        list: { display: 'flex', flexDirection: 'column', gap: '6px', overflow: 'auto', minHeight: 0 },
+        row: { display: 'flex', alignItems: 'center', gap: '12px', padding: '9px 8px', borderRadius: '5px' },
         name: {
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: '12px',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: '13px',
           fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: '0 0 34%',
         },
         summary: {
-          fontSize: '12px', opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden',
+          fontSize: '13px', opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden',
           textOverflow: 'ellipsis', flex: '1 1 auto', minWidth: 0,
         },
         seg: { display: 'inline-flex', gap: '3px', flex: 'none' },
         segOn: {
-          fontSize: '11px', padding: '2px 9px', borderRadius: '999px', cursor: 'pointer',
+          fontSize: '12px', padding: '3px 10px', borderRadius: '999px', cursor: 'pointer',
           border: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,.45))',
           background: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,.18))', color: 'inherit',
         },
         segOff: {
-          fontSize: '11px', padding: '2px 9px', borderRadius: '999px', cursor: 'pointer',
+          fontSize: '12px', padding: '3px 10px', borderRadius: '999px', cursor: 'pointer',
           border: '1px solid transparent', background: 'transparent', color: 'inherit', opacity: 0.55,
         },
         groupHead: {
-          display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 8px',
+          display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 8px',
           cursor: 'pointer', userSelect: 'none', flex: 'none', position: 'sticky', top: 0,
           background: 'var(--dsw-alias-bg-layer-1, rgba(127,127,127,.04))',
           borderBottom: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,.2))',
           zIndex: 1,
         },
-        groupLabel: { fontSize: '12px', fontWeight: 700, opacity: 0.8, whiteSpace: 'nowrap', flex: '0 0 auto' },
+        groupLabel: { fontSize: '13px', fontWeight: 700, opacity: 0.8, whiteSpace: 'nowrap', flex: '0 0 auto' },
         groupCount: {
-          fontSize: '11px', padding: '0 8px', borderRadius: '999px', lineHeight: '18px',
+          fontSize: '12px', padding: '0 8px', borderRadius: '999px', lineHeight: '18px',
           background: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,.15))', opacity: 0.7, flex: '0 0 auto',
         },
         chevron: {
-          fontSize: '10px', opacity: 0.45, flex: 'none', display: 'inline-block',
+          fontSize: '11px', opacity: 0.45, flex: 'none', display: 'inline-block',
           transition: 'transform .12s ease',
         },
         groupBody: { display: 'flex', flexDirection: 'column', gap: '1px' },
@@ -326,7 +326,7 @@
        * @returns React 元素。
        */
       function GuideIcon() {
-        return h('svg', { width: 18, height: 18, viewBox: '0 0 18 18', fill: 'none', 'aria-hidden': 'true' },
+        return h('svg', { width: 20, height: 20, viewBox: '0 0 18 18', fill: 'none', 'aria-hidden': 'true' },
           h('rect', { x: 2.5, y: 3.5, width: 13, height: 11, rx: 2, stroke: 'currentColor', strokeWidth: 1.3 }),
           h('path', { d: 'M5.5 7.5h7M5.5 10.5h4.5', stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round' }))
       }
