@@ -107,11 +107,14 @@ export function apply(ctx, config = {}) {
   /**
    * 自动判定一个工具的来源分组。
    *
-   * 优先级：MCP 命名规则（`mcp__server__tool`）＞ register 拦截捕获的插件名 ＞
-   * 已知内核工具集合 ＞ 其他。
+   * 优先级：MCP 命名规则（`mcp__server__tool`）＞ 命名约定表（{@link sourceByRule}）＞
+   * register 拦截捕获的插件名 ＞ 已知内核工具集合 ＞ 其他。
    *
-   * MCP 优先于拦截结果：MCP 工具虽然由 mcp-client 插件统一注册，但按服务器
-   * 分组比按插件名分组更有用。
+   * 约定表优先于拦截结果：Host 的工具注册表不记录 owner（与 dsh-tools-viewer
+   * 落地时核实的事实一致），且各插件 `apply()` 的相对顺序由模块导入竞速决定、
+   * 不可靠——gitea-task-issues 等插件若早于本插件加载，拦截就拿不到它的注册，
+   * 已知工具的分组必须靠命名约定兜住；拦截结果只用来覆盖约定表没收录的新插件
+   * 工具。MCP 优先于两者：MCP 工具虽由 mcp-client 统一注册，但按服务器分组更有用。
    *
    * @param name - 工具名。
    * @returns `{ id, kind, label, server? }`。
@@ -122,6 +125,8 @@ export function apply(ctx, config = {}) {
       const server = mcp[1]
       return { id: 'mcp:' + server, kind: 'mcp', server, label: 'MCP · ' + server }
     }
+    const ruled = sourceByRule(name)
+    if (ruled !== undefined) return ruled
     const plugin = sourceMap.get(name)
     if (typeof plugin === 'string' && plugin !== '') {
       if (plugin === 'root' || plugin.startsWith('tool-')) return { id: 'core', kind: 'local', label: '内核' }
@@ -650,6 +655,59 @@ const EMPTY_SET = new Set()
 /** MCP 工具命名规则：`mcp__server__tool`。 */
 const MCP_NAME = /^mcp__([\s\S]+?)__([\s\S]+)$/
 
+/**
+ * 来源命名约定表。Host 的工具注册表不记录 owner，register 拦截只能捕获本插件
+ * 加载之后的注册（插件 `apply()` 的相对顺序由模块导入竞速决定、不可靠），其余
+ * 按命名约定兜底分组。先按精确名、再按前缀，命中即止；都未命中的走拦截结果或
+ * 「其他」。
+ *
+ * 与 dsh-tools-viewer 的来源分组口径保持一致；顺序同时是面板里的分组顺序，
+ * 新增插件工具时在这里补一行（client 半边的 `GROUP_ORDER` 同步）。
+ */
+const SOURCE_RULES = [
+  // Host 第一方：内核工具与能力家族
+  {
+    id: 'core', label: '内核',
+    names: [
+      'bash', 'read', 'write', 'edit', 'glob', 'grep', 'present', 'read_image',
+      'todo_write', 'ask_user_question', 'skill', 'plugin_manager', 'exit_plan_mode',
+      'job_list', 'job_kill', 'job_output',
+    ],
+  },
+  { id: 'search', label: '联网搜索', names: [
+    'web_search', 'web_fetch', 'multi_search', 'advanced_search', 'free_search_test',
+    'platform_search', 'domain_search', 'research', 'cache_search',
+  ] },
+  // 自研插件：按各自工具命名约定归组
+  { id: 'gitea', label: 'Gitea 看板', prefixes: ['gitea_'] },
+  { id: 'sidebar-terminal', label: 'sidebar-terminal', prefixes: ['sidebar_terminal_'] },
+  { id: 'cron', label: 'cron 定时任务', names: ['cron'], prefixes: ['cron_'] },
+  { id: 'debug-web', label: '网页调试', names: ['dsh_debug_web'] },
+  { id: 'setting-pro', label: 'setting-pro', prefixes: ['dsh_restart_'] },
+  // Host 第一方能力家族（拆出单列比全塞「内核」更利于管理）
+  { id: 'mcp-resources', label: 'MCP 资源', names: ['list_mcp_resources', 'list_mcp_resource_templates', 'read_mcp_resource'] },
+  { id: 'cordis', label: 'Cordis 运行时', prefixes: ['cordis_inspect_'] },
+  { id: 'teams', label: 'Agent Teams', names: ['spawn_teammate', 'send_message', 'wait_agent', 'interrupt_agent', 'list_agents'], prefixes: ['team_task_'] },
+  { id: 'subagent', label: '子代理', names: ['subagent', 'subagent_codex', 'subagent_fork', 'list_subagent_models'] },
+  { id: 'schedule', label: '排程', prefixes: ['schedule_'] },
+  { id: 'goal', label: '目标', names: ['create_goal', 'get_goal', 'update_goal'] },
+]
+
+/**
+ * 按命名约定表判定来源；未命中时返回 `undefined` 交给后续层级。
+ * @param name - 工具名。
+ * @returns `{ id, kind, label }` 或 `undefined`。
+ */
+function sourceByRule(name) {
+  for (const rule of SOURCE_RULES) {
+    if (rule.names !== undefined && rule.names.includes(name)) return { id: rule.id, kind: 'local', label: rule.label }
+    if (rule.prefixes !== undefined && rule.prefixes.some((prefix) => name.startsWith(prefix))) {
+      return { id: rule.id, kind: 'local', label: rule.label }
+    }
+  }
+  return undefined
+}
+
 /** 已知内核工具（register 拦截未捕获时的兜底，避免误归「其他」）。 */
 const CORE_TOOLS = new Set([
   'read', 'write', 'edit', 'glob', 'grep', 'bash', 'todo_write',
@@ -660,12 +718,13 @@ const CORE_TOOLS = new Set([
 const HOOK_MARK = Symbol('tool-discovery:register-hook')
 
 /**
- * 把插件名美化成分组标签：去掉 `dsh-` 前缀，其余原样。
- * @param plugin - fiber.name（如 `dsh-sidebar-terminal`）。
- * @returns 标签（如 `sidebar-terminal`）。
+ * 把插件名美化成分组标签：去掉 `@scope/` 与 `dsh-` 前缀，其余原样。
+ * @param plugin - fiber.name（如 `@goodandready/dsh-cron` 或 `dsh-sidebar-terminal`）。
+ * @returns 标签（如 `cron`、`sidebar-terminal`）。
  */
 function prettifyName(plugin) {
-  return plugin.startsWith('dsh-') ? plugin.slice(4) : plugin
+  const name = plugin.replace(/^@[^/]+\//, '')
+  return name.startsWith('dsh-') ? name.slice(4) : name
 }
 
 /**

@@ -243,8 +243,14 @@
             if (source.id.startsWith('plugin:')) return source.label || source.id.slice('plugin:'.length)
             return source.label || source.id
           }
+          /** 分组展示顺序：与 Host 半边 SOURCE_RULES 表同序，未知插件/服务器/其他排后。 */
+          const GROUP_ORDER = [
+            'core', 'search', 'gitea', 'sidebar-terminal', 'cron', 'debug-web', 'setting-pro',
+            'mcp-resources', 'cordis', 'teams', 'subagent', 'schedule', 'goal',
+          ]
           const groupRank = (id) => {
-            if (id === 'core') return 0
+            const known = GROUP_ORDER.indexOf(id)
+            if (known >= 0) return known
             if (id.startsWith('plugin:')) return 100
             if (id.startsWith('mcp:')) return 200
             if (id === 'other') return 999

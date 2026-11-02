@@ -270,13 +270,13 @@ const schemasOf = (ctx) => ctx.tools.schemas(undefined)
   const s1 = d1.body.tools.find((t) => t.name === 'my_read')?.source
   check(s1?.id === 'core' && s1?.label === '内核', 'tool-* 插件注册的工具归内核')
 
-  // 自研插件：fiber.name = 'dsh-sidebar-terminal'
+  // 自研插件：fiber.name = 'dsh-sidebar-terminal'；约定表优先于拦截结果
   const ctx2 = makeCtx({ tools: [], toolCallerCtx: { fiber: { name: 'dsh-sidebar-terminal' } } })
   apply(ctx2, {})
   ctx2.tools.register({ name: 'sidebar_terminal_create', description: '开终端。', parameters: { type: 'object', properties: {} } })
   const d2 = await callRoute(ctx2.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
   const s2 = d2.body.tools.find((t) => t.name === 'sidebar_terminal_create')?.source
-  check(s2?.id === 'plugin:dsh-sidebar-terminal' && s2?.label === 'sidebar-terminal', '自研插件按名分组（去 dsh- 前缀）')
+  check(s2?.id === 'sidebar-terminal' && s2?.label === 'sidebar-terminal', '约定表优先于拦截结果（分组稳定）')
 
   // MCP：纯靠命名规则，即使拦截到 mcp-client 也按服务器分
   const ctx3 = makeCtx({ tools: [], toolCallerCtx: { fiber: { name: 'mcp-client' } } })
@@ -299,6 +299,42 @@ const schemasOf = (ctx) => ctx.tools.schemas(undefined)
   const d5 = await callRoute(ctx5.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
   const s5 = d5.body.tools.find((t) => t.name === 'bash')?.source
   check(s5?.id === 'core' && s5?.label === '内核', '内核工具集合兜底')
+
+  // 用户报告的真实病例：gitea 插件先于本插件加载，register 拦截没捕到，
+  // 靠命名约定表兜住（预置进 Map、没走 register，模拟「先注册后挂钩」）
+  const ctx6 = makeCtx({ tools: [
+    { name: 'gitea_issue_comment_create', description: '评论。' },
+    { name: 'gitea_issue_list', description: '列 issue。' },
+    { name: 'sidebar_terminal_read', description: '读终端。' },
+    { name: 'schedule_create', description: '建提醒。' },
+    { name: 'job_list', description: '列后台作业。' },
+    { name: 'create_goal', description: '建目标。' },
+  ] })
+  apply(ctx6, {})
+  const d6 = await callRoute(ctx6.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  const src6 = (n) => d6.body.tools.find((t) => t.name === n)?.source
+  const g6 = src6('gitea_issue_comment_create')
+  check(g6?.id === 'gitea' && g6?.label === 'Gitea 看板', '先注册的 gitea_* 靠约定表归组，不再落「其他」')
+  check(src6('gitea_issue_list')?.id === 'gitea', 'gitea_ 前缀族整体归组')
+  check(src6('sidebar_terminal_read')?.id === 'sidebar-terminal', 'sidebar_terminal_* 归 sidebar-terminal')
+  check(src6('schedule_create')?.id === 'schedule' && src6('schedule_create')?.label === '排程', 'schedule_* 归排程')
+  check(src6('job_list')?.id === 'core', 'job_* 归内核')
+  check(src6('create_goal')?.id === 'goal', '目标工具归目标组')
+
+  // 拦截结果仍然覆盖约定表没收录的新插件工具
+  const ctx7 = makeCtx({ tools: [], toolCallerCtx: { fiber: { name: '@dongasai/dsh-future-plugin' } } })
+  apply(ctx7, {})
+  ctx7.tools.register({ name: 'future_widget_paint', description: '画组件。', parameters: { type: 'object', properties: {} } })
+  const d7 = await callRoute(ctx7.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  const s7 = d7.body.tools.find((t) => t.name === 'future_widget_paint')?.source
+  check(s7?.id === 'plugin:@dongasai/dsh-future-plugin' && s7?.label === 'future-plugin', '未收录的新插件仍按拦截到的 fiber 分组（含去 @scope/）')
+
+  // 前缀族：teams
+  const ctx8 = makeCtx({ tools: [{ name: 'team_task_assign', description: '派任务。' }] })
+  apply(ctx8, {})
+  const d8 = await callRoute(ctx8.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  const s8 = d8.body.tools.find((t) => t.name === 'team_task_assign')?.source
+  check(s8?.id === 'teams' && s8?.label === 'Agent Teams', 'team_task_ 前缀归 Agent Teams')
 }
 
 /**
