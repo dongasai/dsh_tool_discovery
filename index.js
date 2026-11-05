@@ -105,16 +105,22 @@ export function apply(ctx, config = {}) {
   ctx.effect(() => unhookRegister, 'tool-discovery: register source hook')
 
   /**
-   * 自动判定一个工具的来源分组。
+   * 自动判定一个工具的供应商。
    *
-   * 优先级：MCP 命名规则（`mcp__server__tool`）＞ 命名约定表（{@link sourceByRule}）＞
-   * register 拦截捕获的插件名 ＞ 已知内核工具集合 ＞ 其他。
+   * 优先级：MCP 命名规则（`mcp__server__tool`）＞ 供应商命名约定表
+   * （{@link VENDOR_RULES}）＞ register 拦截捕获的插件名 ＞ 已知内核工具集合 ＞
+   * 其他。
    *
    * 约定表优先于拦截结果：Host 的工具注册表不记录 owner（与 dsh-tools-viewer
    * 落地时核实的事实一致），且各插件 `apply()` 的相对顺序由模块导入竞速决定、
    * 不可靠——gitea-task-issues 等插件若早于本插件加载，拦截就拿不到它的注册，
-   * 已知工具的分组必须靠命名约定兜住；拦截结果只用来覆盖约定表没收录的新插件
-   * 工具。MCP 优先于两者：MCP 工具虽由 mcp-client 统一注册，但按服务器分组更有用。
+   * 已知工具的供应商必须靠命名约定兜住；拦截结果只用来覆盖约定表没收录的新插件
+   * 工具。MCP 优先于两者：MCP 工具虽由 mcp-client 统一注册，但按服务器归供应商
+   * 比按插件名更有用。
+   *
+   * 约定表与拦截路径必须产出**同一个供应商键**（约定表 id = 真实 bundle id，
+   * 拦截命中的插件名经 {@link prettifyName} 归一后两者逐字一致），否则同一供应商
+   * 的工具会被拆到两个组。
    *
    * @param name - 工具名。
    * @returns `{ id, kind, label, server? }`。
@@ -130,7 +136,8 @@ export function apply(ctx, config = {}) {
     const plugin = sourceMap.get(name)
     if (typeof plugin === 'string' && plugin !== '') {
       if (plugin === 'root' || plugin.startsWith('tool-')) return { id: 'core', kind: 'local', label: '内核' }
-      return { id: 'plugin:' + plugin, kind: 'local', label: prettifyName(plugin) }
+      // 与约定表同一形态：约定表 id 用真实 bundle id，拦截命中也取归一后的 bundle 名。
+      return { id: prettifyName(plugin), kind: 'local', label: prettifyName(plugin) }
     }
     if (CORE_TOOLS.has(name)) return { id: 'core', kind: 'local', label: '内核' }
     return { id: 'other', kind: 'local', label: '其他' }
@@ -656,53 +663,61 @@ const EMPTY_SET = new Set()
 const MCP_NAME = /^mcp__([\s\S]+?)__([\s\S]+)$/
 
 /**
- * 来源命名约定表。Host 的工具注册表不记录 owner，register 拦截只能捕获本插件
+ * 供应商命名约定表。Host 的工具注册表不记录 owner，register 拦截只能捕获本插件
  * 加载之后的注册（插件 `apply()` 的相对顺序由模块导入竞速决定、不可靠），其余
- * 按命名约定兜底分组。先按精确名、再按前缀，命中即止；都未命中的走拦截结果或
+ * 按命名约定兜底。先按精确名、再按前缀，命中即止；都未命中的走拦截结果或
  * 「其他」。
  *
- * 与 dsh-tools-viewer 的来源分组口径保持一致；顺序同时是面板里的分组顺序，
- * 新增插件工具时在这里补一行（client 半边的 `GROUP_ORDER` 同步）。
+ * 每行的 `vendor` 是**真实 bundle id**（经 {@link prettifyName} 归一同表），与
+ * 拦截路径捕获的插件名归一后产出的 id 逐字一致——约定策略（本表）与实际捕获
+ * （拦截）必须落到同一个供应商 id，否则同一个供应商的工具会被拆到两组。
+ * 新增插件的供应商行时，按 bundle 顺序决定先后（← 面板里的供应商展示顺序，
+ * client 半边的 `VENDOR_ORDER` 同步）。
+ *
+ * 第一方行为家族（teams/subagent/schedule/goal/mcp-resources/cordis）在运行 profile
+ * 中不是独立 bundle，按其归属能力单列供应商，便于管理而非塞进「内核」。
  */
-const SOURCE_RULES = [
-  // Host 第一方：内核工具与能力家族
+const VENDOR_RULES = [
   {
-    id: 'core', label: '内核',
+    vendor: 'core', label: '内核',
     names: [
       'bash', 'read', 'write', 'edit', 'glob', 'grep', 'present', 'read_image',
       'todo_write', 'ask_user_question', 'skill', 'plugin_manager', 'exit_plan_mode',
       'job_list', 'job_kill', 'job_output',
     ],
   },
-  { id: 'search', label: '联网搜索', names: [
-    'web_search', 'web_fetch', 'multi_search', 'advanced_search', 'free_search_test',
-    'platform_search', 'domain_search', 'research', 'cache_search',
+  // 官方 web 通道（@deepseek-ai/dsh-web bundle）：web_search / web_fetch
+  { vendor: 'web', label: '官方 web', names: ['web_search', 'web_fetch'] },
+  // dsh-free-search 插件（bundle id: web-search-free）：免费搜索全家
+  { vendor: 'web-search-free', label: '联网搜索（免费）', names: [
+    'free_search_test', 'platform_search', 'video_search', 'advanced_search',
+    'multi_search', 'research', 'cache_search', 'domain_search', 'weather',
   ] },
-  // 自研插件：按各自工具命名约定归组
-  { id: 'gitea', label: 'Gitea 看板', prefixes: ['gitea_'] },
-  { id: 'sidebar-terminal', label: 'sidebar-terminal', prefixes: ['sidebar_terminal_'] },
-  { id: 'cron', label: 'cron 定时任务', names: ['cron'], prefixes: ['cron_'] },
-  { id: 'debug-web', label: '网页调试', names: ['dsh_debug_web'] },
-  { id: 'setting-pro', label: 'setting-pro', prefixes: ['dsh_restart_'] },
+  // 自研插件：按各自工具命名约定归供应商
+  { vendor: 'gitea-task-issues', label: 'gitea-task-issues', prefixes: ['gitea_'] },
+  { vendor: 'sidebar-terminal', label: 'sidebar-terminal', prefixes: ['sidebar_terminal_'] },
+  { vendor: 'cron', label: 'cron', names: ['cron'], prefixes: ['cron_'] },
+  { vendor: 'debug-web', label: 'debug-web', names: ['dsh_debug_web'] },
+  { vendor: 'setting-pro', label: 'setting-pro', prefixes: ['dsh_restart_'] },
   // Host 第一方能力家族（拆出单列比全塞「内核」更利于管理）
-  { id: 'mcp-resources', label: 'MCP 资源', names: ['list_mcp_resources', 'list_mcp_resource_templates', 'read_mcp_resource'] },
-  { id: 'cordis', label: 'Cordis 运行时', prefixes: ['cordis_inspect_'] },
-  { id: 'teams', label: 'Agent Teams', names: ['spawn_teammate', 'send_message', 'wait_agent', 'interrupt_agent', 'list_agents'], prefixes: ['team_task_'] },
-  { id: 'subagent', label: '子代理', names: ['subagent', 'subagent_codex', 'subagent_fork', 'list_subagent_models'] },
-  { id: 'schedule', label: '排程', prefixes: ['schedule_'] },
-  { id: 'goal', label: '目标', names: ['create_goal', 'get_goal', 'update_goal'] },
+  { vendor: 'mcp-resources', label: 'MCP 资源', names: ['list_mcp_resources', 'list_mcp_resource_templates', 'read_mcp_resource'] },
+  { vendor: 'cordis', label: 'cordis-inspect', prefixes: ['cordis_inspect_'] },
+  { vendor: 'teams', label: 'teams', names: ['spawn_teammate', 'send_message', 'wait_agent', 'interrupt_agent', 'list_agents'], prefixes: ['team_task_'] },
+  { vendor: 'subagent', label: 'subagent', names: ['subagent', 'subagent_codex', 'subagent_fork', 'list_subagent_models'] },
+  { vendor: 'schedule', label: 'schedule', prefixes: ['schedule_'] },
+  { vendor: 'goal', label: 'goal', names: ['create_goal', 'get_goal', 'update_goal'] },
 ]
 
 /**
- * 按命名约定表判定来源；未命中时返回 `undefined` 交给后续层级。
+ * 按命名约定表判定工具供应商；未命中时返回 `undefined` 交给后续层级。
  * @param name - 工具名。
- * @returns `{ id, kind, label }` 或 `undefined`。
+ * @returns `{ id, kind, label }` 或 `undefined`，`id` 即供应商键。
  */
 function sourceByRule(name) {
-  for (const rule of SOURCE_RULES) {
-    if (rule.names !== undefined && rule.names.includes(name)) return { id: rule.id, kind: 'local', label: rule.label }
+  for (const rule of VENDOR_RULES) {
+    if (rule.names !== undefined && rule.names.includes(name)) return { id: rule.vendor, kind: 'local', label: rule.label }
     if (rule.prefixes !== undefined && rule.prefixes.some((prefix) => name.startsWith(prefix))) {
-      return { id: rule.id, kind: 'local', label: rule.label }
+      return { id: rule.vendor, kind: 'local', label: rule.label }
     }
   }
   return undefined

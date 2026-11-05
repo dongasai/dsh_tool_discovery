@@ -314,12 +314,31 @@ const schemasOf = (ctx) => ctx.tools.schemas(undefined)
   const d6 = await callRoute(ctx6.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
   const src6 = (n) => d6.body.tools.find((t) => t.name === n)?.source
   const g6 = src6('gitea_issue_comment_create')
-  check(g6?.id === 'gitea' && g6?.label === 'Gitea 看板', '先注册的 gitea_* 靠约定表归组，不再落「其他」')
-  check(src6('gitea_issue_list')?.id === 'gitea', 'gitea_ 前缀族整体归组')
+  check(g6?.id === 'gitea-task-issues' && g6?.label === 'gitea-task-issues', '先注册的 gitea_* 靠约定表归供应商 gitea-task-issues（bundle id 同形），不再落「其他」')
+  check(src6('gitea_issue_list')?.id === 'gitea-task-issues', 'gitea_ 前缀族整体归同一供应商')
   check(src6('sidebar_terminal_read')?.id === 'sidebar-terminal', 'sidebar_terminal_* 归 sidebar-terminal')
-  check(src6('schedule_create')?.id === 'schedule' && src6('schedule_create')?.label === '排程', 'schedule_* 归排程')
+  check(src6('schedule_create')?.id === 'schedule' && src6('schedule_create')?.label === 'schedule', 'schedule_* 归 schedule')
   check(src6('job_list')?.id === 'core', 'job_* 归内核')
-  check(src6('create_goal')?.id === 'goal', '目标工具归目标组')
+  check(src6('create_goal')?.id === 'goal', '目标工具归 goal')
+
+  // 供应商防回归（用户病例）：free_search_test / advanced_search 同属 dsh-free-search
+  // bundle（id: web-search-free），按 id 分组必须同组；web_search/web_fetch 属 web
+  // bundle，不得混入。
+  const ctx9 = makeCtx({ tools: [
+    { name: 'free_search_test', description: '测引擎。' },
+    { name: 'advanced_search', description: '高级检索。' },
+    { name: 'web_search', description: '检索。' },
+    { name: 'web_fetch', description: '抓网页。' },
+  ] })
+  apply(ctx9, {})
+  const d9 = await callRoute(ctx9.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  const src9 = (n) => d9.body.tools.find((t) => t.name === n)?.source
+  check(src9('free_search_test')?.id === 'web-search-free', 'free_search_test 归供应商 web-search-free')
+  check(src9('advanced_search')?.id === 'web-search-free', 'advanced_search 归供应商 web-search-free')
+  check(src9('free_search_test')?.id === src9('advanced_search')?.id, '同一供应商的搜索工具必须同组（防拆散）')
+  check(src9('web_search')?.id === 'web', 'web_search 归官方 web 供应商')
+  check(src9('web_fetch')?.id === 'web', 'web_fetch 归官方 web 供应商')
+  check(src9('web_search')?.id !== src9('free_search_test')?.id, '不同供应商不混组（防合并）')
 
   // 拦截结果仍然覆盖约定表没收录的新插件工具
   const ctx7 = makeCtx({ tools: [], toolCallerCtx: { fiber: { name: '@dongasai/dsh-future-plugin' } } })
@@ -327,14 +346,14 @@ const schemasOf = (ctx) => ctx.tools.schemas(undefined)
   ctx7.tools.register({ name: 'future_widget_paint', description: '画组件。', parameters: { type: 'object', properties: {} } })
   const d7 = await callRoute(ctx7.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
   const s7 = d7.body.tools.find((t) => t.name === 'future_widget_paint')?.source
-  check(s7?.id === 'plugin:@dongasai/dsh-future-plugin' && s7?.label === 'future-plugin', '未收录的新插件仍按拦截到的 fiber 分组（含去 @scope/）')
+  check(s7?.id === 'future-plugin' && s7?.label === 'future-plugin', '未收录的新插件仍按拦截 fiber 名归供应商（含去 @scope/，id 与约定表同形）')
 
   // 前缀族：teams
   const ctx8 = makeCtx({ tools: [{ name: 'team_task_assign', description: '派任务。' }] })
   apply(ctx8, {})
   const d8 = await callRoute(ctx8.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
   const s8 = d8.body.tools.find((t) => t.name === 'team_task_assign')?.source
-  check(s8?.id === 'teams' && s8?.label === 'Agent Teams', 'team_task_ 前缀归 Agent Teams')
+  check(s8?.id === 'teams' && s8?.label === 'teams', 'team_task_ 前缀归 teams')
 }
 
 /**

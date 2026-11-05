@@ -28,11 +28,11 @@ Host 半边（`index.js`）改完要重启 `dsh web`；浏览器半边（`client
 | 面板 | 页签 | 管什么 | 写到哪 |
 | --- | --- | --- | --- |
 | 工具·全局 | `tool-discovery-global` | 默认档名单、全局屏蔽、索引预算 | `$DSH_HOME/tool-discovery/global.json` |
-| 工具·工作区 | `tool-discovery-workspace` | 当前会话所在工作区的追加默认 / 追加屏蔽 | `<workspace>/.dsh/tool-policy.json` |
+| 工具发现·工作区 | `tool-discovery-workspace` | 当前会话所在工作区的追加默认 / 追加屏蔽 | `<workspace>/.dsh/tool-policy.json` |
 
 面板每行一个工具，点「默认 / 可发现 / 屏蔽」改档，按「保存」落盘。工具表由 Host 半边按 全局 → 工作区 → 会话激活 合成后给出，所以看到的就是生效结果。
 
-「工具·工作区」页签正文由右侧栏槽位传入当前会话 id（`sidebar.right.pane.tab` 的 `sessionId` prop），**只管理当前会话所在工作区**，不提供工作区切换下拉；没有会话上下文时只读显示全局合成结果且保存被拒。
+「工具发现·工作区」页签正文由右侧栏槽位传入当前会话 id（`sidebar.right.pane.tab` 的 `sessionId` prop），**只管理当前会话所在工作区**，不提供工作区切换下拉；没有会话上下文时只读显示全局合成结果且保存被拒。
 
 ## 配置（`cordis.patch.yml`）
 
@@ -63,16 +63,20 @@ Host 半边（`index.js`）改完要重启 `dsh web`；浏览器半边（`client
 
 匹配顺序：精确名 ＞ 前缀 ＞ 名字包含 ＞ 摘要包含 ＞ 说明包含。屏蔽工具永远不出现。
 
-## 来源分组
+## 供应商分组
 
-面板按工具来源分组展示。Host 的工具注册表**不记录 owner**（与 dsh-tools-viewer 落地时核实一致），识别分三层，命中即止：
+面板按工具的**供应商**分组展示。Host 的工具注册表**不记录 owner**（与 dsh-tools-viewer 落地时核实一致），识别分三层，命中即止：
 
 1. **MCP 命名规则**：`mcp__server__tool` → `MCP · <server>`，按服务器分开；
-2. **命名约定表**（Host 半边 `SOURCE_RULES`）：内核 / 联网搜索 / Gitea 看板 / sidebar-terminal / cron 定时任务 / 网页调试 / setting-pro / MCP 资源 / Cordis 运行时 / Agent Teams / 子代理 / 排程 / 目标——先精确名、再前缀；
+2. **供应商命名约定表**（Host 半边 `VENDOR_RULES`）：每行是一个**真实 bundle id**——内核 / 官方 web（`@deepseek-ai/dsh-web` 的 `web_search`/`web_fetch`）/ 联网搜索（免费）（`dsh-free-search` bundle id `web-search-free`）/ gitea-task-issues / sidebar-terminal / cron / debug-web / setting-pro / MCP 资源 / cordis / teams / subagent / schedule / goal——先精确名、再前缀；
 3. **register 拦截**：本插件加载之后注册的工具按注册方 fiber 名归组（兜住约定表没收录的新插件）；
 4. 其余落「其他」。
 
-**为什么约定表优先于拦截**：各插件 `apply()` 的相对顺序由模块导入竞速决定、不可靠——gitea-task-issues 若早于本插件加载，拦截就拿不到它的注册，`gitea_*` 会掉进「其他」。约定表保证已知工具的分组稳定，拦截只负责新插件。新增插件工具时在 `SOURCE_RULES` 补一行（client 半边的 `GROUP_ORDER` 同步）。
+**约定表 id 与拦截路径必须逐字一致**：约定表的 id 就是真实 bundle id（`web-search-free`），拦截捕获的插件名经 `prettifyName` 归一后也取同一形态——两条路径落到同一个供应商键，否则同一个供应商的工具会被拆到两组（这正是历史 bug：旧的 `search` 族把 `web` 与 `web-search-free` 两个不同供应商的工具混在一组，且与拦截的 `plugin:*` id 异形）。
+
+**为什么约定表优先于拦截**：各插件 `apply()` 的相对顺序由模块导入竞速决定、不可靠——gitea-task-issues 若早于本插件加载，拦截就拿不到它的注册，`gitea_*` 会掉进「其他」。约定表保证已知工具的分组稳定，拦截只负责新插件。新增插件工具时在 `VENDOR_RULES` 补一行（client 半边的 `VENDOR_ORDER` 同步）。
+
+分组头右侧有「全部设为 默认/可发现/屏蔽」快捷开关，对整组工具批量设档（随保存落盘）。
 
 ## 实现要点
 

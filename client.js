@@ -4,7 +4,7 @@
  * **工具发现 —— 浏览器半边**：在右侧栏注册两个页签。
  *
  * - 「工具·全局」：管所有工作区都继承的底（默认档名单、全局屏蔽、索引预算）。
- * - 「工具·工作区」：只管理当前会话所在工作区的覆盖（追加默认 / 追加屏蔽），
+ * - 「工具发现·工作区」：只管理当前会话所在工作区的覆盖（追加默认 / 追加屏蔽），
  *   页签正文绑定 `sidebar.right.pane.tab` 槽位传入的 `sessionId`，不提供工作区切换。
  *
  * ## 数据与约束
@@ -121,6 +121,11 @@
         chevron: {
           fontSize: '11px', opacity: 0.45, flex: 'none', display: 'inline-block',
           transition: 'transform .12s ease',
+        },
+        quick: {
+          fontSize: '12px', padding: '2px 9px', borderRadius: '999px', cursor: 'pointer', flex: 'none',
+          border: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,.4))',
+          background: 'transparent', color: 'inherit', opacity: 0.85,
         },
         groupBody: { display: 'flex', flexDirection: 'column', gap: '1px' },
       }
@@ -243,15 +248,15 @@
             if (source.id.startsWith('plugin:')) return source.label || source.id.slice('plugin:'.length)
             return source.label || source.id
           }
-          /** 分组展示顺序：与 Host 半边 SOURCE_RULES 表同序，未知插件/服务器/其他排后。 */
-          const GROUP_ORDER = [
-            'core', 'search', 'gitea', 'sidebar-terminal', 'cron', 'debug-web', 'setting-pro',
-            'mcp-resources', 'cordis', 'teams', 'subagent', 'schedule', 'goal',
+          /** 供应商展示顺序：与 Host 半边 VENDOR_RULES 表同序，未知供应商排后。 */
+          const VENDOR_ORDER = [
+            'core', 'web', 'web-search-free', 'gitea-task-issues', 'sidebar-terminal',
+            'cron', 'debug-web', 'setting-pro', 'mcp-resources', 'cordis', 'teams',
+            'subagent', 'schedule', 'goal',
           ]
           const groupRank = (id) => {
-            const known = GROUP_ORDER.indexOf(id)
+            const known = VENDOR_ORDER.indexOf(id)
             if (known >= 0) return known
-            if (id.startsWith('plugin:')) return 100
             if (id.startsWith('mcp:')) return 200
             if (id === 'other') return 999
             return 500
@@ -277,9 +282,24 @@
             })
           }
 
+          /**
+           * 给一个供应商整组设档。
+           * @param group - 当前供应商分组。
+           * @param bucket - 目标档位。
+           * @returns 无。
+           */
+          const setBucketForGroup = (group, bucket) => {
+            setDraft((current) => {
+              if (current === undefined) return current
+              const next = { ...current }
+              for (const tool of group.items) next[tool.name] = bucket
+              return next
+            })
+          }
+
           return h('div', { style: S.root },
             h('div', { style: S.head },
-              h('h3', { style: S.title }, isGlobal ? '工具自动发现' : '工具·工作区'),
+              h('h3', { style: S.title }, isGlobal ? '工具自动发现' : '工具发现·工作区'),
               h('span', { style: S.counts },
                 `共 ${data.counts.total} · 默认 ${counters.default} · 可发现 ${counters.discoverable} · 屏蔽 ${counters.blocked}`),
               h('span', { style: S.spacer }),
@@ -310,7 +330,20 @@
                   },
                     h('span', { style: { ...S.chevron, transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' } }, '▾'),
                     h('span', { style: S.groupLabel }, sourceLabel(group.source)),
-                    h('span', { style: S.groupCount }, group.items.length)),
+                    h('span', { style: S.groupCount }, group.items.length),
+                    h('span', { style: S.spacer }),
+                    h('span', { style: { display: 'inline-flex', gap: '4px' } },
+                      BUCKETS.map((bucket) => h('button', {
+                        key: bucket.id,
+                        type: 'button',
+                        style: S.quick,
+                        title: `把本供应商全部工具设为「${bucket.label}」`,
+                        'aria-label': `把本供应商全部工具设为${bucket.label}`,
+                        onClick: (event) => {
+                          event.stopPropagation()
+                          setBucketForGroup(group, bucket.id)
+                        },
+                      }, `全部设为${bucket.label}`)))),
                   ...(isCollapsed ? [] : group.items.map((tool) => h('div', { key: tool.name, style: S.row },
                     h('span', { style: S.name, title: tool.name }, tool.name),
                     h('span', { style: S.summary, title: tool.summary }, tool.summary),
@@ -392,11 +425,11 @@
             id: TAB_WORKSPACE,
             kind: TAB_WORKSPACE,
             priority: 'builtin',
-            title: () => '工具·工作区',
+            title: () => '工具发现·工作区',
             guide: [{
               id: `${TAB_WORKSPACE}-guide`,
               order: 31,
-              title: () => '工具·工作区',
+              title: () => '工具发现·工作区',
               description: () => '管理当前工作区的默认档与屏蔽',
               icon: GuideIcon,
             }],

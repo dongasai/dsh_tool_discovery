@@ -78,7 +78,7 @@ async function main() {
     groups.get(id).items.push(tool.name)
   }
   const order = [...groups.entries()].sort(([a], [b]) => {
-    const rank = (id) => (id === 'core' ? 0 : id.startsWith('plugin:') ? 100 : id.startsWith('mcp:') ? 200 : id === 'other' ? 999 : 50)
+    const rank = (id) => (id === 'core' ? 0 : id.startsWith('mcp:') ? 200 : id === 'other' ? 999 : 50)
     return rank(a) - rank(b)
   })
   for (const [id, { label, items }] of order) {
