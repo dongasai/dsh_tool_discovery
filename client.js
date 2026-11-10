@@ -251,7 +251,7 @@
           /** 供应商展示顺序：与 Host 半边 VENDOR_RULES 表同序，未知供应商排后。 */
           const VENDOR_ORDER = [
             'core', 'web', 'web-search-free', 'gitea-task-issues', 'sidebar-terminal',
-            'cron', 'debug-web', 'setting-pro', 'mcp-resources', 'cordis', 'teams',
+            'cron', 'debug-web', 'setting-pro', 'qbittorrent', 'mcp-resources', 'cordis', 'teams',
             'subagent', 'schedule', 'goal',
           ]
           const groupRank = (id) => {

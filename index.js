@@ -684,6 +684,11 @@ const VENDOR_RULES = [
       'bash', 'read', 'write', 'edit', 'glob', 'grep', 'present', 'read_image',
       'todo_write', 'ask_user_question', 'skill', 'plugin_manager', 'exit_plan_mode',
       'job_list', 'job_kill', 'job_output',
+      // 第一方工具 bundle（`@deepseek-ai/dsh-tool-*`）——拦截路径经 prettifyName
+      // 得到 `tool-*` 也归内核（见 sourceOf），这里补齐精确名让两条路径一致。
+      'working_directory', 'workflow', 'plugin_market', 'session_search', 'session_trace',
+      'session_event_read', 'session_event_trace', 'create_worktree',
+      'load_workspace_dependencies', 'str_replace_editor', 'apply_patch', 'ralph',
     ],
   },
   // 官方 web 通道（@deepseek-ai/dsh-web bundle）：web_search / web_fetch
@@ -699,6 +704,8 @@ const VENDOR_RULES = [
   { vendor: 'cron', label: 'cron', names: ['cron'], prefixes: ['cron_'] },
   { vendor: 'debug-web', label: 'debug-web', names: ['dsh_debug_web'] },
   { vendor: 'setting-pro', label: 'setting-pro', prefixes: ['dsh_restart_'] },
+  // 第三方插件：@wuzhican/dsh-qbittorrent（挂载 id `qbittorrent`）的 `qb_*` 全家
+  { vendor: 'qbittorrent', label: 'qbittorrent', prefixes: ['qb_'] },
   // Host 第一方能力家族（拆出单列比全塞「内核」更利于管理）
   { vendor: 'mcp-resources', label: 'MCP 资源', names: ['list_mcp_resources', 'list_mcp_resource_templates', 'read_mcp_resource'] },
   { vendor: 'cordis', label: 'cordis-inspect', prefixes: ['cordis_inspect_'] },

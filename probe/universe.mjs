@@ -2,8 +2,9 @@
  * 真实工具全集的分组模拟（确定性核查，不是单测）。
  *
  * 数据来源：
- *   - 本会话提示词快照里的 <available-tools-index>（47 个列出 + 19 个未列出）；
- *   - 各插件源码里 `ctx.tools.register` 的注册名（补齐被预算截掉的那 19 个）。
+ *   - `probe/universe-tools.json`（快照，来自会话提示词 `<available-tools-index>`
+ *     与各插件源码里核实过的注册名；新增插件工具时往这个文件补名字）；
+ *   - 缺省内核工具（`read`/`bash`/…）在脚本里补齐，避免快照漏项。
  *
  * 模拟「全部工具都先于本插件注册」的最坏情形（register 拦截一个都捕不到），
  * 调真实的面板路由打印分组结果，看哪些工具仍会落「其他」。重启 dsh web 后
@@ -40,22 +41,14 @@ function makeCtx(tools) {
   }
 }
 
-/** 快照里列出的可发现工具 + 被预算截掉、从插件源码补齐的注册名。 */
+/** 快照工具名 + 缺省内核工具（去重）。 */
 function universe() {
-  const listed = JSON.parse(readFileSync(join(here, '.tmp', 'index-tools.json'), 'utf8'))
+  const listed = JSON.parse(readFileSync(join(here, 'universe-tools.json'), 'utf8'))
   const defaults = [
     'read', 'write', 'edit', 'glob', 'grep', 'bash', 'todo_write',
     'ask_user_question', 'skill', 'present', 'read_image', 'tool_find',
   ]
-  // 被预算截掉的 19 个里，从插件源码核实过的注册名（快照里的「未列出」）
-  const fromSources = [
-    'spawn_teammate', 'send_message', 'wait_agent', 'subagent', 'subagent_fork',
-    'list_subagent_models', 'sidebar_terminal_list', 'sidebar_terminal_create',
-    'sidebar_terminal_read', 'sidebar_terminal_write', 'cron', 'dsh_debug_web',
-    'dsh_restart_status', 'dsh_restart_when_idle', 'dsh_restart_cancel',
-    'web_search', 'web_fetch',
-  ]
-  return [...new Set([...defaults, ...listed, ...fromSources])]
+  return [...new Set([...defaults, ...listed])]
 }
 
 async function main() {

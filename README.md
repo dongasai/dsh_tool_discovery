@@ -68,7 +68,7 @@ Host 半边（`index.js`）改完要重启 `dsh web`；浏览器半边（`client
 面板按工具的**供应商**分组展示。Host 的工具注册表**不记录 owner**（与 dsh-tools-viewer 落地时核实一致），识别分三层，命中即止：
 
 1. **MCP 命名规则**：`mcp__server__tool` → `MCP · <server>`，按服务器分开；
-2. **供应商命名约定表**（Host 半边 `VENDOR_RULES`）：每行是一个**真实 bundle id**——内核 / 官方 web（`@deepseek-ai/dsh-web` 的 `web_search`/`web_fetch`）/ 联网搜索（免费）（`dsh-free-search` bundle id `web-search-free`）/ gitea-task-issues / sidebar-terminal / cron / debug-web / setting-pro / MCP 资源 / cordis / teams / subagent / schedule / goal——先精确名、再前缀；
+2. **供应商命名约定表**（Host 半边 `VENDOR_RULES`）：每行是一个**真实 bundle id**——内核 / 官方 web（`@deepseek-ai/dsh-web` 的 `web_search`/`web_fetch`）/ 联网搜索（免费）（`dsh-free-search` bundle id `web-search-free`）/ gitea-task-issues / sidebar-terminal / cron / debug-web / setting-pro / qbittorrent（`@wuzhican/dsh-qbittorrent` 的 `qb_*`）/ MCP 资源 / cordis / teams / subagent / schedule / goal——先精确名、再前缀；
 3. **register 拦截**：本插件加载之后注册的工具按注册方 fiber 名归组（兜住约定表没收录的新插件）；
 4. 其余落「其他」。
 
@@ -105,4 +105,4 @@ Host 半边（`index.js`）改完要重启 `dsh web`；浏览器半边（`client
 node probe/probe.mjs
 ```
 
-桩 ctx + 真文件系统，覆盖：默认档过滤、索引生成与截断、`tool_find` 检索与激活、屏蔽 guard、工作区覆盖、全局文件覆盖、两条面板路由、工具来源自动感知（含「先注册后挂钩」的兜底用例）。当前 49 项断言。
+桩 ctx + 真文件系统，覆盖：默认档过滤、索引生成与截断、`tool_find` 检索与激活、屏蔽 guard、工作区覆盖、全局文件覆盖、两条面板路由、工具来源自动感知（含「先注册后挂钩」的兜底用例）。当前 59 项断言。

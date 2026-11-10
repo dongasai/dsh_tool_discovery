@@ -321,6 +321,25 @@ const schemasOf = (ctx) => ctx.tools.schemas(undefined)
   check(src6('job_list')?.id === 'core', 'job_* 归内核')
   check(src6('create_goal')?.id === 'goal', '目标工具归 goal')
 
+  // 用户病例：@wuzhican/dsh-qbittorrent 的 qb_* 全家没进约定表，整组落「其他」。
+  // 该插件在 bundle 末尾挂载，实际由本表兜住（这里同样预置进 Map，不走 register）。
+  const ctxQb = makeCtx({ tools: [
+    { name: 'qb_status', description: '健康快照。' },
+    { name: 'qb_list_torrents', description: '列种子。' },
+    { name: 'qb_set_category', description: '改分类。' },
+    { name: 'qb_delete_torrent', description: '删种子。' },
+  ] })
+  apply(ctxQb, {})
+  const dQb = await callRoute(ctxQb.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  const srcQb = (n) => dQb.body.tools.find((t) => t.name === n)?.source
+  check(srcQb('qb_status')?.id === 'qbittorrent' && srcQb('qb_status')?.label === 'qbittorrent', 'qb_* 归供应商 qbittorrent（不再是「其他」）')
+  check(srcQb('qb_set_category')?.id === 'qbittorrent', 'qb_set_category 与同插件工具同组（用户病例：改分类没划入正确供应商）')
+  check(
+    ['qb_status', 'qb_list_torrents', 'qb_set_category', 'qb_delete_torrent'].every((n) => srcQb(n)?.id === srcQb('qb_status')?.id),
+    'qb_ 前缀族整体归同一供应商',
+  )
+  check(srcQb('qb_status')?.id !== 'other', 'qb_* 不再落「其他」')
+
   // 供应商防回归（用户病例）：free_search_test / advanced_search 同属 dsh-free-search
   // bundle（id: web-search-free），按 id 分组必须同组；web_search/web_fetch 属 web
   // bundle，不得混入。
