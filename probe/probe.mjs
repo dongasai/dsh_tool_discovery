@@ -340,6 +340,16 @@ const schemasOf = (ctx) => ctx.tools.schemas(undefined)
   )
   check(srcQb('qb_status')?.id !== 'other', 'qb_* 不再落「其他」')
 
+  // register 拦截拿到的是根上下文（fiber 缺失 → 记成 'root'）时，约定表必须仍然
+  // 先赢，否则 qb_* 会被错划进「内核」——这是 qbittorrent 在 bundle 末尾挂载、
+  // 与本插件加载竞速时的真实分支。
+  const ctxQb2 = makeCtx({ tools: [] })
+  apply(ctxQb2, {})
+  ctxQb2.tools.register({ name: 'qb_set_category', description: '改分类。', parameters: { type: 'object', properties: {} } })
+  const dQb2 = await callRoute(ctxQb2.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  const sQb2 = dQb2.body.tools.find((t) => t.name === 'qb_set_category')?.source
+  check(sQb2?.id === 'qbittorrent', '拦截只捕到根上下文时，qb_* 仍按约定表归 qbittorrent（不被错划「内核」）')
+
   // 供应商防回归（用户病例）：free_search_test / advanced_search 同属 dsh-free-search
   // bundle（id: web-search-free），按 id 分组必须同组；web_search/web_fetch 属 web
   // bundle，不得混入。
