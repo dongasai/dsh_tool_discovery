@@ -66,6 +66,25 @@ function makeCtx(options = {}) {
           parameters: tool.parameters ?? { type: 'object', properties: {} },
         }))
       },
+      // 宿主 0.2.2 的步级准入：`resolve` 返回带 view() 的 toolSet。
+      // 只有 options.stepAdmission 为真时才挂上，用来对比「有闸 / 无闸」两条路径。
+      ...options.stepAdmission === true
+        ? {
+            async resolve(context) {
+              const agent = context?.agent
+              let closed = false
+              return {
+                dispose() { closed = true },
+                view(scope) {
+                  if (closed || scope !== agent) return new Map()
+                  const visible = new Map()
+                  for (const [name, tool] of tools) visible.set(name, tool)
+                  return visible
+                },
+              }
+            },
+          }
+        : {},
     },
     systemPrompt: {
       section(section) { sections.push(section); return () => {} },
@@ -91,9 +110,9 @@ function boot(options = {}) {
 
 /**
  * 跑一遍 assemble 瀑布。
- * @param {object} ctx - 桩上下文。
- * @param {object} agent - 目标 agent。
- * @param {Array} schemas - 进入组装的工具表。
+ * @param object - 桩上下文。
+ * @param agent - 目标 agent。
+ * @param schemas - 进入组装的工具表。
  * @returns 过滤后的工具表。
  */
 async function assemble(ctx, agent, schemas) {
@@ -104,6 +123,42 @@ async function assemble(ctx, agent, schemas) {
     assembly = await listener.handler(assembly, { agent, scope: agent }, next)
   }
   return assembly.tools
+}
+
+/**
+ * 模拟宿主 0.2.2 的 preStep：先跑组装瀑布（策略在这里刷新准入名单），
+ * 再看步级准入 `tools.resolve()` 返回的 view。
+ *
+ * 忠实之处在于**最终声明取自 toolSet.view(agent)**（宿主用
+ * `this.definitions(scope, toolSet)` 拼声明），瀑布里改 `assembly.tools`
+ * 会被宿主的 `return { ...transformed, tools }` 覆盖——这正是本插件
+ * 旧实现失效的根因，这里按同样的语义建模。
+ *
+ * @param {object} ctx - 桩上下文。
+ * @param {object} agent - 目标 agent。
+ * @returns {Promise<string[]>} 模型真正会看到的工具名。
+ */
+async function stepDeclarations(ctx, agent) {
+  await assemble(ctx, agent, schemasOf(ctx))
+  if (typeof ctx.tools.resolve !== 'function') {
+    return (await assemble(ctx, agent, schemasOf(ctx))).map((item) => item.name)
+  }
+  const toolSet = await ctx.tools.resolve({ agent, signal: { throwIfAborted() {} } })
+  const names = [...toolSet.view(agent).keys()]
+  toolSet.dispose()
+  return names
+}
+
+/**
+ * 触发一条宿主事件（agent/created、agent/disposed 等）。
+ * @param {object} ctx - 桩上下文。
+ * @param {string} event - 事件名。
+ * @param {object} payload - 事件载荷。
+ * @returns {Promise<void>}
+ */
+async function emit(ctx, event, payload) {
+  const handlers = ctx.__.listeners.filter((item) => item.event === event)
+  for (const listener of handlers) await listener.handler(payload)
 }
 
 /** 桩注册表当前的模型侧 schema 表。 */
@@ -383,6 +438,87 @@ const schemasOf = (ctx) => ctx.tools.schemas(undefined)
   const d8 = await callRoute(ctx8.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
   const s8 = d8.body.tools.find((t) => t.name === 'team_task_assign')?.source
   check(s8?.id === 'teams' && s8?.label === 'teams', 'team_task_ 前缀归 teams')
+}
+
+// ---------------------------------------------------------------- 11. 步级准入闸（宿主 0.2.2）
+{
+  // 0.2.2 的宿主在瀑布之后用自己的 tools 覆盖装配结果，所以只有
+  // `tools.resolve` 这一层能真正让工具不出现在声明里。
+  const ctx = boot({ stepAdmission: true })
+  const agent = { id: 's10', session: { header: { cwd: join(tmp, 'ws-none') } } }
+
+  const declared = await stepDeclarations(ctx, agent)
+  check(declared.includes('read'), '准入闸放行默认档工具')
+  check(declared.includes('bash'), '准入闸放行默认档工具（bash）')
+  check(declared.includes('tool_find'), '准入闸保留 tool_find')
+  check(!declared.includes('web_search'), '准入闸挡住可发现档工具（0.2.2 上旧瀑布过滤无效，这里才是真过滤）')
+  check(!declared.includes('mcp__mail__send'), '准入闸挡住插件工具')
+  check(declared.length === 3, '准入闸只放默认档 + 保留名')
+
+  // 注册表 / 面板视角必须完整：收的是「步级准入」，不是注册表。
+  const registry = ctx.tools.schemas(undefined).map((item) => item.name)
+  check(registry.includes('web_search') && registry.includes('mcp__mail__send'), '注册表不被收窄（面板仍看得到全部工具）')
+  check(registry.length === ctx.__.tools.size, '注册表条数与注册总数一致')
+
+  // 激活：同一轮就刷新准入名单，下一步进声明。
+  const tool = ctx.__.tools.get('tool_find')
+  const activated = await tool.execute({ name: 'web_search', activate: true }, { agent })
+  check(activated.text.startsWith('Successfully activated tools: web_search'), '激活回执')
+  const afterActivate = await stepDeclarations(ctx, agent)
+  check(afterActivate.includes('web_search'), '激活后下一步进声明（无需等下一轮组装）')
+
+  // 另一个会话不受影响。
+  const other = { id: 's11', session: { header: { cwd: join(tmp, 'ws-none') } } }
+  const otherDeclared = await stepDeclarations(ctx, other)
+  check(!otherDeclared.includes('web_search'), '激活只作用于本会话')
+}
+
+// ---------------------------------------------------------------- 12. 准入闸 × 屏蔽 / 子代理 / 降级
+{
+  // 工作区屏蔽：即使工具在默认档，也不能出现在声明里。
+  const ws = join(tmp, 'ws-step-block')
+  mkdirSync(join(ws, '.dsh'), { recursive: true })
+  writeFileSync(join(ws, '.dsh', 'tool-policy.json'), JSON.stringify({ default: [], blocked: ['bash'] }))
+  const ctx = boot({ stepAdmission: true })
+  const agent = { id: 's12', session: { header: { cwd: ws } } }
+  const declared = await stepDeclarations(ctx, agent)
+  check(!declared.includes('bash'), '被屏蔽的默认档工具也不进声明')
+  check(declared.includes('read'), '未被屏蔽的默认档工具正常放行')
+
+  // 子代理 / teammate：`agent/created` 就装闸，第一步 resolve 之前已收窄。
+  const child = { id: 'child-1', session: { header: { cwd: join(tmp, 'ws-none') } } }
+  check(ctx.__.listeners.some((item) => item.event === 'agent/created'), '注册了 agent/created 监听')
+  await emit(ctx, 'agent/created', { agent: child })
+  const childToolSet = await ctx.tools.resolve({ agent: child, signal: { throwIfAborted() {} } })
+  const childNames = [...childToolSet.view(child).keys()]
+  childToolSet.dispose()
+  check(childNames.includes('read') && !childNames.includes('web_search'), '新 agent 在第一步组装前就被收窄（子代理同样生效）')
+
+  // 销毁后不再收窄（失败开放：宁可多给工具也不能卡住执行）。
+  await emit(ctx, 'agent/disposed', { agent: child })
+  const afterDispose = await ctx.tools.resolve({ agent: child, signal: { throwIfAborted() {} } })
+  check([...afterDispose.view(child).keys()].length > 3, 'dispose 后不再收窄（失败开放）')
+  afterDispose.dispose()
+
+  // 面板读接口报告闸门状态。
+  const data = await callRoute(ctx.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  check(data.body.admission?.installed === true, '面板报告准入闸已安装')
+
+  // 宿主真实顺序是 resolve 先于 assemble：全新会话、一次组装都还没跑过时，
+  // 第一次准入也必须已经收窄（靠闸门里的惰性解析现算）。
+  const fresh = boot({ stepAdmission: true })
+  const freshAgent = { id: 'fresh-1', session: { header: { cwd: join(tmp, 'ws-none') } } }
+  const freshSet = await fresh.tools.resolve({ agent: freshAgent, signal: { throwIfAborted() {} } })
+  const freshNames = [...freshSet.view(freshAgent).keys()]
+  freshSet.dispose()
+  check(freshNames.includes('read') && !freshNames.includes('web_search'), '全新会话的第一次 resolve 就收窄（无需先跑组装）')
+
+  // 老宿主（无 tools.resolve）：退回瀑布过滤，功能不变但路径不同。
+  const old = boot()
+  const oldDeclared = await stepDeclarations(old, { id: 's13', session: { header: { cwd: join(tmp, 'ws-none') } } })
+  check(!oldDeclared.includes('web_search'), '老宿主（无 resolve）仍靠瀑布过滤生效')
+  const oldData = await callRoute(old.__.routes.get('/tool-discovery/data'), 'GET', '/tool-discovery/data')
+  check(oldData.body.admission?.installed === false, '老宿主上面板报告闸门缺席（降级态可见）')
 }
 
 /**

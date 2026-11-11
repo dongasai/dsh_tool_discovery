@@ -82,12 +82,44 @@ Host 半边（`index.js`）改完要重启 `dsh web`；浏览器半边（`client
 
 | 环节 | 用的官方面 |
 | --- | --- |
-| 视图过滤 | `system-prompt/assemble` 瀑布，删掉非默认档的 schema |
+| 视图过滤 | **步级准入**（`ToolsService.resolve` 收窄 `toolSet.view(agent)`）；老宿主（<= 0.2.1）退回 `system-prompt/assemble` 瀑布 |
 | 索引注入 | `ctx.systemPrompt.section()`，`order` 取 `TOOLS_SDK` 前 1 |
 | 执行拒绝 | `ctx.tools.guard()`，只拦屏蔽档 |
 | 工具表 | `ctx.tools.schemas(agent)` |
 | 工作区 | `ctx.workspaceRegistry.list()` + `session.header.cwd` |
 | 面板数据 | `ctx.webServer.register` 两条路由，先过 `ctx.connection.requestRejection` |
+
+### 为什么是「步级准入」而不是瀑布过滤
+
+宿主 **0.2.2** 起 `SystemPrompt.assemble` 的返回值由宿主自己拼 tools：
+
+```js
+const tools = orderTools(collected, this.toolOrder, knownNames)
+const assembly = { sections, contexts, variables }        // 不含 tools
+const transformed = await this.ctx.waterfall(..., 'system-prompt/assemble', assembly, ...)
+return { ...transformed, tools }                          // ← 瀑布改的 tools 被覆盖
+```
+
+0.2.0-rc.2 是 `return transformed`，所以在瀑布里改 `assembly.tools` 曾经有效。
+0.2.2 之后那条路被收回：**索引段落、guard 照常，但「隐藏工具」整个失效**——这正是
+「插件装了却没效果、模型还是能看到全部工具」的根因。
+
+可用的替代面是 agent-loop 的 preStep 顺序：
+
+```
+tools.resolve({ agent, ... })  →  systemPrompt.assemble({ ..., toolSet })
+```
+
+声明最终来自 `toolSet.view(agent)`（`dsh-tools` 的 tool provider 调
+`this.definitions(scope, toolSet)`）。于是本插件包住 `ToolsService.resolve`，
+按 agent 收窄它返回的 view。要点：
+
+- **只收窄准入，不动注册表**：`ctx.tools.schemas()`、面板、其他读者看到的仍是完整工具面；
+- **失败开放**：没登记过的 agent 一律不收窄；`dispose` 之后不再收窄；
+- **惰性现算**：宿主 resolve 先于 assemble 跑，第一次准入时名单还没算过，
+  闸门内置 resolver 现场按策略算一份（否则全新会话的第一步会漏出全部工具）；
+- **降级可见**：宿主没有 `resolve` 时 `admission.installed === false`，
+  面板数据里带这个字段，过滤退回老的瀑布路径。
 
 三处**失败开放**：组装瀑布、guard、索引段落出错时都保持原样，宁可多给工具也不让一轮请求失败。
 
@@ -97,7 +129,11 @@ Host 半边（`index.js`）改完要重启 `dsh web`；浏览器半边（`client
 - **PTC 模式**：模型只看到 `run_code`，索引与激活语义未适配；目前只保证 native 模式。
 - **中途激活改请求头**：激活后下一轮才进声明；没做 `defer_loading` + `tool_addition`，所以会重算一次请求头。
 - **与 activator 打架**：两者都改工具声明，同时开启是双重伪装，建议二选一。
+  **实测（2026-11-12，宿主 0.2.2-rc.1 + dsh-tool-activator 0.5.0）**：activator 也包了
+  `ToolsService.resolve`，两层闸门串行叠加时先装的赢——本插件先装就会被 activator 的
+  gate 覆盖，反之亦然。真要两个都留，只能让其中一个只做索引不做过滤。
 - **工作区面板只跟当前会话走**：不再有工作区下拉；目标工作区由会话 cwd 解析（`workspaceRegistry` 只做校验兜底）。没有会话上下文时面板只读且保存被拒。
+- **准入名单每步现算**：不做「只增不减」的历史兜底，面板把工具改成屏蔽后下一步即生效；已激活的靠 `activations` 记住，所以不会闪断。
 
 ## 探针
 
@@ -105,4 +141,4 @@ Host 半边（`index.js`）改完要重启 `dsh web`；浏览器半边（`client
 node probe/probe.mjs
 ```
 
-桩 ctx + 真文件系统，覆盖：默认档过滤、索引生成与截断、`tool_find` 检索与激活、屏蔽 guard、工作区覆盖、全局文件覆盖、两条面板路由、工具来源自动感知（含「先注册后挂钩」的兜底用例）。当前 60 项断言。
+桩 ctx + 真文件系统，覆盖：默认档过滤、索引生成与截断、`tool_find` 检索与激活、屏蔽 guard、工作区覆盖、全局文件覆盖、两条面板路由、工具来源自动感知（含「先注册后挂钩」的兜底用例），以及步级准入闸（0.2.2 路径：放行/挡住/激活后进声明/工作区屏蔽/新 agent 首步收窄/全新会话首次 resolve/dispose 失败开放/老宿主降级）。当前 80 项断言。

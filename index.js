@@ -285,28 +285,90 @@ export function apply(ctx, config = {}) {
     return [header, ...chosen.lines, ...tail].join('\n')
   }
 
-  // ---------------------------------------------------------------- 视图过滤
+  // ---------------------------------------------------------------- 步级准入闸
 
+  /**
+   * 本轮的「模型可见」名单：`agent → Set<工具名>`。
+   * 由 {@link syncAdmission} 写入，`tool_find` 与面板复用它，
+   * 保证「提示词列出来的」和「声明里给的」永远是同一份。
+   */
+  const admitted = new WeakMap()
+
+  /** 准入闸安装状态：`installed === false` 表示宿主没有 `tools.resolve`。 */
+  const admission = installAdmissionGating(ctx)
+  ctx.effect(() => () => admission.restore(), 'tool-discovery: admission gate')
+  // 第一个步级准入可能早于任何一次组装：让闸门自己现算名单。
+  admission.setResolver((agent) => { syncAdmission(agent) })
+
+  /**
+   * 重算一个 agent 的准入名单并交给闸门。
+   *
+   * 名单 = 默认档 ∪ 保留名 − 屏蔽，每次都从策略现算：面板把某个工具改成
+   * 屏蔽、或工作区策略文件被改写，下一步就该生效，不做「只增不减」的历史兜底。
+   * 会话激活存在 `activations` 里，激活后下一步自然进默认档。
+   *
+   * @param agent - 目标 agent。
+   * @returns 落定的名单；策略算不出来时返回上一轮名单（失败开放）。
+   */
+  function syncAdmission(agent) {
+    if (agent === undefined || agent === null) return undefined
+    let names
+    try {
+      const policy = policyFor(agent)
+      let schemas = []
+      try {
+        // 不给 toolSet：读注册表全集，避免与闸门互相递归。
+        schemas = ctx.tools.schemas(agent)
+      } catch {
+        schemas = []
+      }
+      names = new Set()
+      for (const schema of schemas) {
+        if (policy.bucketOf(schema.name) === 'default') names.add(schema.name)
+      }
+      for (const name of RESERVED) names.add(name)
+    } catch {
+      return admitted.get(agent)
+    }
+    admitted.set(agent, names)
+    admission.setAllowed(agent, names)
+    return names
+  }
+
+  // 宿主 0.2.2 起 `assemble` 的返回值由宿主自己拼 tools，瀑布改它无效；
+  // 这一层保留给 0.2.0/0.2.1，同时也负责在每轮组装时刷新准入名单。
   ctx.on('system-prompt/assemble', async (assembly, assembleContext, next) => {
     const result = await next()
     const agent = assembleContext?.agent ?? assembleContext?.scope
     if (agent === undefined || agent === null) return result
     // 失败开放：策略算不出来时保持原样，宁可多给工具也不能让整轮组装失败。
     try {
-      const policy = policyFor(agent)
+      const allowed = syncAdmission(agent)
+      if (admission.installed || allowed === undefined) return result
       const kept = []
       for (const schema of result.tools ?? []) {
-        if (RESERVED.has(schema.name)) {
-          kept.push(schema)
-          continue
-        }
-        if (policy.bucketOf(schema.name) === 'default') kept.push(schema)
+        if (allowed.has(schema.name)) kept.push(schema)
       }
       result.tools = kept
     } catch {
       /* 保持 result 原样 */
     }
     return result
+  })
+
+  // 新 agent（子代理 / teammate）在它自己的第一步 `resolve` 之前把闸门装好，
+  // 否则第一次步级准入会拿到没被收窄的全集。
+  ctx.on('agent/created', ({ agent }) => {
+    try {
+      syncAdmission(agent)
+    } catch {
+      /* 建闸失败不影响 agent 创建 */
+    }
+  })
+
+  ctx.on('agent/disposed', ({ agent }) => {
+    admitted.delete(agent)
+    admission.forget(agent)
   })
 
   // ---------------------------------------------------------------- 执行闸
@@ -390,6 +452,8 @@ export function apply(ctx, config = {}) {
         const set = activations.get(sessionId) ?? new Set()
         set.add(target.name)
         activations.set(sessionId, set)
+        // 激活后同一轮就把准入名单刷新，下一步的声明里才真的带上这个工具。
+        syncAdmission(agent)
         return { text: `Successfully activated tools: ${target.name}\n${target.name} — ${target.summary}` }
       }
 
@@ -518,6 +582,9 @@ export function apply(ctx, config = {}) {
           discoverable: tools.filter((tool) => tool.bucket === 'discoverable').length,
           blocked: tools.filter((tool) => tool.bucket === 'blocked').length,
         },
+        // 准入闸是否真的装上：宿主 < 0.2.2 没有 tools.resolve，只能靠老的
+        // 瀑布过滤；面板据此提示「隐藏功能当前是降级态」。
+        admission: { installed: admission.installed },
         tools,
       })
     } catch (error) {
@@ -796,6 +863,84 @@ function hookRegisterSource(ctx, sourceMap) {
         value: original, writable: true, configurable: true, enumerable: false,
       })
     } catch { /* 还原失败忽略 */ }
+  }
+}
+
+/**
+ * 把宿主的步级准入（`ToolsService.resolve`）包一层，按 agent 收窄可见工具。
+ *
+ * 为什么必须在这层：宿主 0.2.2 起 `SystemPrompt.assemble` 自己拼 `tools`
+ * （`return { ...transformed, tools }`），瀑布里改 `assembly.tools` 被直接覆盖；
+ * 而 agent-loop 的 preStep 顺序是 `tools.resolve()` → `systemPrompt.assemble()`，
+ * 声明最终来自 `toolSet.view(agent)`。所以**只收窄 resolve 返回的 view**，
+ * 注册表、`ctx.tools.schemas()`、面板读到的一切保持完整。
+ *
+ * 宿主 < 0.2.2 没有 `resolve`（0.2.0-rc.2 / 0.2.1 走瀑布），此时返回
+ * `installed: false` 的空闸，插件退回到 `assemble` 里过滤的老路径。
+ *
+ * @param ctx - Host 上下文。
+ * @returns `{ installed, setAllowed, forget, restore }`。
+ */
+function installAdmissionGating(ctx) {
+  let owner = ctx.tools
+  let original = null
+  let descriptor = null
+  while (owner !== null && owner !== undefined) {
+    const desc = Object.getOwnPropertyDescriptor(owner, 'resolve')
+    if (desc !== undefined && typeof desc.value === 'function') {
+      original = desc.value
+      descriptor = desc
+      break
+    }
+    owner = Object.getPrototypeOf(owner)
+  }
+  if (original === null) {
+    return { installed: false, setAllowed() {}, setResolver() {}, forget() {}, restore() {} }
+  }
+
+  /** `agent → Set<允许的工具名>`；没登记过的 agent 一律不收窄（失败开放）。 */
+  const allowed = new WeakMap()
+
+  /** 已经被 forget 的 agent：闸门不再替它现算，保持「不再收窄」的失败开放语义。 */
+  const retired = new WeakSet()
+
+  /** 惰性解析器：宿主先跑 `resolve` 后跑组装，第一个 step 只能在这里现算。 */
+  let resolver
+
+  const hooked = async function resolve(context) {
+    const agent = context?.agent
+    // 宿主顺序是 resolve → assemble，第一次准入时 `allowed` 里还没有这个
+    // agent；不在这里现算，第一步就会把全部工具漏给模型。
+    if (agent !== undefined && !retired.has(agent) && !allowed.has(agent) && resolver !== undefined) resolver(agent)
+    const toolSet = await original.call(this, context)
+    const allow = agent === undefined ? undefined : allowed.get(agent)
+    if (allow === undefined) return toolSet
+    return {
+      dispose: () => toolSet.dispose(),
+      view(scope) {
+        const visible = toolSet.view(scope)
+        const narrowed = new Map()
+        for (const [name, definition] of visible) if (allow.has(name)) narrowed.set(name, definition)
+        return narrowed
+      },
+    }
+  }
+  Object.defineProperty(owner, 'resolve', {
+    value: hooked, writable: true, configurable: true, enumerable: descriptor.enumerable ?? false,
+  })
+
+  return {
+    installed: true,
+    setAllowed(agent, names) { allowed.set(agent, names) },
+    setResolver(fn) { resolver = fn },
+    forget(agent) { allowed.delete(agent); retired.add(agent) },
+    restore() {
+      try {
+        Object.defineProperty(owner, 'resolve', {
+          value: original, writable: true, configurable: true, enumerable: descriptor.enumerable ?? false,
+        })
+      } catch { /* 还原失败忽略 */ }
+    },
   }
 }
 
