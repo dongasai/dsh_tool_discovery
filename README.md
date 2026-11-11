@@ -10,13 +10,13 @@
 
 ## 装法
 
-作为本地 bundle 装进 profile：
+作为本地 bundle 装进 profile（把 `<本仓库绝对路径>` 换成你本机的 clone 路径）：
 
 ```bash
 cd ~/.dsh/profiles/web
-# package.json: dependencies 加 "@dongasai/dsh-tool-discovery": "link:/data/ai/dsh/dsh_tool_discovery"
+# package.json: dependencies 加 "@dongasai/dsh-tool-discovery": "link:<本仓库绝对路径>"
 #              dsh.profile.bundles 加 "@dongasai/dsh-tool-discovery"
-ln -s /data/ai/dsh/dsh_tool_discovery node_modules/@dongasai/dsh-tool-discovery
+ln -s <本仓库绝对路径> node_modules/@dongasai/dsh-tool-discovery
 ```
 
 Host 半边（`index.js`）改完要重启 `dsh web`；浏览器半边（`client.js`）刷新页面即新。
